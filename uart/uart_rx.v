@@ -91,4 +91,6 @@ module UartReceiver(
                 end
         endcase
     end
+
+    // TODO add parity
 endmodule
