@@ -31,18 +31,27 @@ module UartReceiver(
 
     /* Slow clock begin */
     reg [CLOCK_DIVISOR_WIDTH-1:0] clockCounter = 0;
-    wire uartClk = clockCounter > (latchedClockDivisor >> 1);
+    wire uartClkEnabled = state != STATE_IDLE;
+    reg uartClk = 1'b0;
     always @(posedge clk) begin
         if(rst) begin
             clockCounter <= 0;
         end else begin
             if(state == STATE_IDLE) begin
                 clockCounter <= 0;
+                uartClk <= 1'b0;
             end else begin
-                if(clockCounter != latchedClockDivisor)
-                    clockCounter <= clockCounter + 1;
-                else
+                if(!uartClkEnabled) begin
                     clockCounter <= 0;
+                    uartClk <= 1'b0;
+                end else begin
+                    if(clockCounter != latchedClockDivisor)
+                        clockCounter <= clockCounter + 1;
+                    else begin
+                        clockCounter <= 0;
+                        uartClk <= ~uartClk;
+                    end
+                end
             end
         end
     end
@@ -141,7 +150,7 @@ module ParityChecker(
     localparam PARITY_ODD = 2'b01;
     localparam PARITY_EVEN = 2'b10;
     localparam PARITY_MARK = 2'b11;
-    wire [8:0] dataMask = ~(~9'h0 << 5 + dataBits);
+    wire [8:0] dataMask = ~(~9'h0 << 5 + dataBits + hasParity);
     always @(data, dataBits, hasParity, parityMode, dataMask) begin
         if(!hasParity)
             parityError = 1'b0;
@@ -149,8 +158,8 @@ module ParityChecker(
             case(parityMode)
                 PARITY_SPACE: parityError = data[5 + dataBits] == 1'b1;
                 PARITY_MARK: parityError = data[5 + dataBits] == 1'b0;
-                PARITY_EVEN: parityError = ^(data & dataMask) == 1'b1;
-                PARITY_ODD: parityError = ^(data & dataMask) == 1'b0;
+                PARITY_EVEN: parityError = ^(data & dataMask);
+                PARITY_ODD: parityError = ~^(data & dataMask);
             endcase
         end
     end

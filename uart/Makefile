@@ -1,4 +1,4 @@
-SRC=testbench.v uart_tx.v
+SRC=testbench.v uart_tx.v uart_rx.v
 
 all: uart_testbench
 wave: uart_testbench
