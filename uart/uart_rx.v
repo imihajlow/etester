@@ -6,7 +6,7 @@ module UartReceiver(
     input hasParity,
     input [1:0] parityMode, // 00 - space, 11 - mark, 10 - even, 01 - odd
     input extraStopBit,
-    input [CLOCK_DIVISOR_WIDTH-1:0] clockDivisor, // F_clk = (clockDivisor + 1) * F_uartClk
+    input [CLOCK_DIVISOR_WIDTH-1:0] clockDivisor,
 
     output reg [8:0] dataOut,
     output reg dataReceived,
