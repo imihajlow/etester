@@ -1,0 +1,28 @@
+{signal: [
+  {name: 'clk',	 		wave: 'p.........'},
+  ["write",
+   ["in",
+    {name: 'dataIn',	wave: 'x2x22x....', data:"X1 X2 X3", phase:0.5},
+    {name: 'writeReq',	wave: '0101.0....', phase: 0.5}
+   ],
+   ["out",
+    {name: 'writeAck',  wave: '0101.0....'}
+   ]
+  ],
+  {},
+  ["read",
+   ["in",
+    
+    {name: 'readReq',	wave: '0..1.0..10.', phase: 0.5}
+   ],
+   ["out",
+    {name: 'readAck',   wave: '0..1.0..10'},
+    {name: 'dataOut',	wave: 'x..22...2.', data:'X1 X2 X3'}
+   ]
+  ],
+  {},
+  ["status",
+   {name: 'empty',		wave: '10......1.'},
+   {name: 'full',		wave: '0.........'}
+  ]
+]}

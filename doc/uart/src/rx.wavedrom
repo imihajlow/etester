@@ -1,0 +1,12 @@
+{signal: [
+  {name: 'clk',	 		wave: 'p|..|....'},
+  {name: 'rx',			wave: '1|2.|1...', data: "char"},
+  ["input",
+  {name: 'receiveReq',  wave: '0|..|.10.'}
+  ],
+  ["output",
+  {name: 'ready',		wave: '1|0.|1...'},
+  {name: 'dataOut',		wave: 'x|..|2...', data: "char"},
+  {name: 'dataReceived',wave: '0|..|10..'},
+  ]
+]}

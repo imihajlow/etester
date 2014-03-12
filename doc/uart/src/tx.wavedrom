@@ -1,0 +1,11 @@
+{signal: [
+  {name: 'clk',	 		wave: 'p...|....'},
+  ["in",
+   {name: 'transmitReq',wave: '010.|....'},
+   {name: 'data',		wave: 'x2x.|....', data: "char", phase: 0.5},
+  ],
+  ["out",
+   {name: 'ready',		wave: '10..|1...'},
+  ],
+  {name: 'tx',			wave: '1.2.|1...', data: "char"}
+]}

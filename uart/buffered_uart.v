@@ -70,9 +70,9 @@ module BufferedUart(
 		.clk(~clk),
 		.rst(rst),
 		.tx(tx),
-		.dataBits(dataBits), // data bits count = dataBits + 5
+		.dataBits(dataBits),
 		.hasParity(hasParity),
-		.parityMode(parityMode), // 00 - space, 11 - mark, 01 - even, 10 - odd
+		.parityMode(parityMode),
 		.extraStopBit(extraStopBit),
 		.clockDivisor(clockDivisor),
 
@@ -80,7 +80,7 @@ module BufferedUart(
 		.data(txData),
 		.transmitReq(transmitReq));
 
-    wire [7:0] rxDataOut;
+    wire [8:0] rxDataOut;
     wire rxDataReceived;
     wire parityError, overflow, break;
     wire receiveReq;

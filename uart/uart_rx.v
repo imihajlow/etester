@@ -114,9 +114,11 @@ module UartReceiver(
                 if(rx) begin
                     if(!latchedExtraStopBit || firstStopBitReceived) begin
                         state <= STATE_IDLE;
-                        if(dataReceived)
-                            overflow <= 1'b1;
-                        dataReceived <= 1'b1;
+                        if(!receiveReq) begin
+                            if(dataReceived)
+                                overflow <= 1'b1;
+                            dataReceived <= 1'b1;
+                        end
                         dataOut <= currentData;
                         parityError <= currentParityError;
                         break <= 1'b0;
