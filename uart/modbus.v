@@ -12,6 +12,9 @@ module ModbusSlave(
     input full,
     output writeReq,
     input writeAck,
-    output [7:0] dataIn    
+    output [7:0] dataIn,
+    
+    input [7:0] stationAddress    
 );
+
 endmodule
