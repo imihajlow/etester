@@ -10,7 +10,7 @@ module UartTransmitter(
 
     output ready,
     input [7:0] data,
-    input transmit
+    input transmitReq
 );
     parameter CLOCK_DIVISOR_WIDTH=24;
     localparam STATE_IDLE = 3'd0;
@@ -70,7 +70,7 @@ module UartTransmitter(
             state <= STATE_IDLE;
             latchedData <= 8'd0;
         end else begin
-            if(state == STATE_IDLE && transmit) begin
+            if(state == STATE_IDLE && transmitReq) begin
                 state <= STATE_START;
                 latchedData <= data;
                 latchedDataBits <= dataBits;

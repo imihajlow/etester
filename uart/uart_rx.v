@@ -13,7 +13,7 @@ module UartReceiver(
     output reg parityError,
     output reg overflow,
     output reg break,
-    input receiveData
+    input receiveReq
 );
     parameter CLOCK_DIVISOR_WIDTH=24;
     localparam STATE_IDLE = 3'd0;
@@ -76,7 +76,7 @@ module UartReceiver(
                     latchedClockDivisor <= clockDivisor;
                 end
             end
-            if(receiveData) begin
+            if(receiveReq) begin
                 dataReceived <= 1'b0;
                 overflow <= 1'b0;
                 break <= 1'b0;

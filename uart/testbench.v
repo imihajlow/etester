@@ -8,14 +8,14 @@ module Testbench();
 	reg extraStopBit = 1'b0;
 	reg [23:0] clockDivisor = 24'd10;
 	reg [7:0] data = 8'd0;
-	reg transmit = 1'b0;
+	reg transmitReq = 1'b0;
 
     wire [8:0] dataOut;
     wire dataReceived;
     wire parityError;
     wire overflow;
     wire break;
-    reg receiveData = 0;
+    reg receiveReq = 0;
 
 
 	UartTransmitter transmitter(
@@ -30,7 +30,7 @@ module Testbench();
 
 		.ready(ready),
 		.data(data),
-		.transmit(transmit));
+		.transmitReq(transmitReq));
 
     UartReceiver uartReceiver(
         .clk(clk),
@@ -47,7 +47,7 @@ module Testbench();
         .parityError(parityError),
         .overflow(overflow),
         .break(break),
-        .receiveData(receiveData)
+        .receiveReq(receiveReq)
     );
     assign rx = tx;
 	always begin
@@ -68,23 +68,23 @@ module Testbench();
 		extraStopBit = 1'b0;
 		clockDivisor = 10;
 		data = 8'h60;
-		transmit = 1'b1;
+		transmitReq = 1'b1;
 		#1;
-		transmit = 1'b0;
+		transmitReq = 1'b0;
 		while(!ready) #1;
 		data = 8'ha5;
-		transmit = 1'b1;
+		transmitReq = 1'b1;
 		#1;
-		transmit = 1'b0;
+		transmitReq = 1'b0;
 		while(!dataReceived) #1;
-		receiveData = 1'b1;
+		receiveReq = 1'b1;
 		#1;
-		receiveData = 1'b0;
+		receiveReq = 1'b0;
 		while(!ready) #1;
 		while(!dataReceived) #1;
-		receiveData = 1'b1;
+		receiveReq = 1'b1;
 		#1;
-		receiveData = 1'b0;
+		receiveReq = 1'b0;
 		#20;
 		$finish;
 	end
