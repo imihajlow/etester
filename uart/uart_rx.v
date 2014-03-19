@@ -13,7 +13,9 @@ module UartReceiver(
     output reg parityError,
     output reg overflow,
     output reg break,
-    input receiveReq
+    input receiveReq,
+
+    output modbusSilence    // 7 or mode characters of silence
 );
     parameter CLOCK_DIVISOR_WIDTH=24;
     localparam STATE_IDLE = 3'd0;
@@ -57,6 +59,8 @@ module UartReceiver(
     end
     /* Slow clock end */
 
+    reg [6:0] silenceCounter = 0;
+
     always @(posedge clk) begin
         if(rst) begin
             dataOut <= 9'b0;
@@ -65,6 +69,7 @@ module UartReceiver(
             overflow <= 1'b0;
             break <= 1'b0;
             state <= STATE_IDLE;
+            silenceCounter <= 3'd0;
         end else begin
             if(state == STATE_IDLE) begin
                 if(rx == 1'b0) begin
@@ -74,6 +79,7 @@ module UartReceiver(
                     latchedParityMode <= parityMode;
                     latchedExtraStopBit <= extraStopBit;
                     latchedClockDivisor <= clockDivisor;
+                    silenceCounter <= 3'd0;
                 end
             end
             if(receiveReq) begin
