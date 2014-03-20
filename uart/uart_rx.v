@@ -61,7 +61,7 @@ module UartReceiver(
     /* Silence counter begin */
     reg [CLOCK_DIVISOR_WIDTH-1:0] silenceClockCounter = 0;
     reg silenceClk = 1'b0;
-    reg [3:0] silenceCharsCounter = 0;
+    reg [7:0] silenceCharsCounter = 0;
     initial begin
         silence <= 1'b0;
     end
@@ -84,7 +84,7 @@ module UartReceiver(
             silenceCharsCounter <= 0;
             silence <= 1'b0;
         end else begin
-            if(silenceCharsCounter == 3) begin
+            if(silenceCharsCounter == 33) begin
                 silence <= 1'b1;
             end else begin
                 silenceCharsCounter <= silenceCharsCounter + 1;
