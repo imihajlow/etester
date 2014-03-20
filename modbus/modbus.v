@@ -1,19 +1,6 @@
 module ModbusToWishbone(
     input clk,
     input rst,
-
-    // Input FIFO
-    input empty,
-    output readReq,
-    input readAck,
-    input [10:0] dataIn,
-
-    // Output FIFO
-    input full,
-    output writeReq,
-    output writeAck,
-    output [10:0] dataOut,
-
     // Wishbone
     output [ADDRESS_WIDTH-1:0] adr_o,
     output [DATA_WIDTH-1:0] dat_o,
@@ -21,7 +8,21 @@ module ModbusToWishbone(
     output cyc_o,
     output stb_o,
     input ack_i,
-    output we_o
+    output we_o,
+
+    // Input UART
+    input [8:0] dataIn,
+    input dataReceived,
+    input parityError,
+    input overflow,
+    input silence,
+    output receiveReq,
+
+    // Output FIFO
+    input full,
+    output writeReq,
+    output writeAck,
+    output [10:0] dataOut
 );
     parameter ADDRESS_WIDTH = 24;
     parameter DATA_WIDTH = 32;

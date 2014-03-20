@@ -13,9 +13,8 @@ module UartReceiver(
     output reg parityError,
     output reg overflow,
     output reg break,
-    input receiveReq,
-
-    output modbusSilence    // 7 or mode characters of silence
+    output reg silence, // 3 or more characters of silence
+    input receiveReq
 );
     parameter CLOCK_DIVISOR_WIDTH=24;
     localparam STATE_IDLE = 3'd0;
@@ -59,7 +58,41 @@ module UartReceiver(
     end
     /* Slow clock end */
 
-    reg [6:0] silenceCounter = 0;
+    /* Silence counter begin */
+    reg [CLOCK_DIVISOR_WIDTH-1:0] silenceClockCounter = 0;
+    reg silenceClk = 1'b0;
+    reg [3:0] silenceCharsCounter = 0;
+    initial begin
+        silence <= 1'b0;
+    end
+    always @(posedge clk) begin
+        if(rst) begin
+            silenceClockCounter <= 0;
+            silenceCharsCounter <= 0;
+            silenceClk <= 1'b0;
+        end else begin
+            if(silenceClockCounter >= clockDivisor) begin
+                silenceClk <= ~silenceClk;
+                silenceClockCounter <= 0;
+            end else begin
+                silenceClockCounter <= silenceClockCounter + 1;
+            end
+        end
+    end
+    always @(posedge silenceClk) begin
+        if(rst || ~rx || state != STATE_IDLE) begin
+            silenceCharsCounter <= 0;
+            silence <= 1'b0;
+        end else begin
+            if(silenceCharsCounter == 3) begin
+                silence <= 1'b1;
+            end else begin
+                silenceCharsCounter <= silenceCharsCounter + 1;
+                silence <= 1'b0;
+            end
+        end
+    end
+    /* Silence counter end */
 
     always @(posedge clk) begin
         if(rst) begin
@@ -69,7 +102,6 @@ module UartReceiver(
             overflow <= 1'b0;
             break <= 1'b0;
             state <= STATE_IDLE;
-            silenceCounter <= 3'd0;
         end else begin
             if(state == STATE_IDLE) begin
                 if(rx == 1'b0) begin
@@ -79,7 +111,6 @@ module UartReceiver(
                     latchedParityMode <= parityMode;
                     latchedExtraStopBit <= extraStopBit;
                     latchedClockDivisor <= clockDivisor;
-                    silenceCounter <= 3'd0;
                 end
             end
             if(receiveReq) begin
