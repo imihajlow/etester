@@ -80,25 +80,6 @@ module ModbusToWishbone(
     end
     /* Input CRC end */
 
-    /* Output CRC begin */
-    wire [15:0] crcOut;
-    wire crcOutRst = sstate == SSTATE_WAIT;
-    wire crcOutEnabled = writeAck && sstateNeg != SSTATE_CRC1 && sstateNeg != SSTATE_END;
-    reg [7:0] crcOutDataIn = 8'b0;
-    reg [7:0] sstateNeg = 8'b0;
-    Crc _crcOut(
-        .data_in(crcOutDataIn),
-        .crc_en(crcOutEnabled),
-        .crc_out(crcOut),
-        .rst(crcOutRst),
-        .clk(clk)
-    );
-    always @(negedge clk) begin
-        sstateNeg <= sstate;
-        crcOutDataIn <= dataOut;
-    end
-    /* Output CRC end */
-
     /* Receive begin */
     always @(posedge clk) begin
         if(rst) begin
@@ -155,6 +136,20 @@ module ModbusToWishbone(
     end
     /* Receive end */
 
+    /* Output CRC begin */
+    wire [15:0] crcOut;
+    wire crcOutRst = sstate == SSTATE_WAIT;
+    reg crcOutEnabled = 1'b0;
+    reg [7:0] crcOutDataIn = 8'b0;
+    Crc _crcOut(
+        .data_in(dataOut),
+        .crc_en(crcOutEnabled),
+        .crc_out(crcOut),
+        .rst(crcOutRst),
+        .clk(~clk)
+    );
+    /* Output CRC end */
+
     /* Send begin */
     reg [7:0] dataOut = 8'h0;
     assign writeReq = sstate != SSTATE_WAIT && sstate != SSTATE_BEGIN;
@@ -167,6 +162,7 @@ module ModbusToWishbone(
             error <= 1'b0;
             exceptionCode <= 8'h0;
             dataOut <= 8'h0;
+            crcOutEnabled <= 1'b0;
         end else begin
             if(writeAck) begin
                 case(sstate)
@@ -177,6 +173,7 @@ module ModbusToWishbone(
                         dataOut <= crcOut[7:0];
                         $display("crcOut[7:0] = %h", crcOut[7:0]);
                         sstate <= SSTATE_CRC1;
+                        crcOutEnabled <= 1'b0;
                     end
                     SSTATE_CRC1: begin
                         dataOut <= crcOut[15:8];
@@ -211,6 +208,10 @@ module ModbusToWishbone(
                         $display("Transmission begin");
                         dataOut <= MODBUS_STATION_ADDRESS;
                         sstate <= SSTATE_FUNCTION;
+                        crcOutEnabled <= 1'b1;
+                    end
+                    default: begin
+                        crcOutEnabled <= 1'b0;
                     end
                 endcase
             end // writeAck

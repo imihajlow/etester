@@ -90,14 +90,14 @@ module FakeUartRx(
 		data[5] = 9'hff;
 		data[6] = 9'hb7;
 		data[7] = 9'h4c;
-		data[6] = 9'h100;
+		data[8] = 9'h100;
 	end
 	assign dataOut = {1'b0, data[dataIndex][7:0]};
 	reg silence = 1'b0;
 	initial begin
 		dataIndex = 0;
 		for(dataIndex = 0; dataIndex < 15; dataIndex = dataIndex + 1) begin
-			if(data[dataIndex][7]) begin
+			if(data[dataIndex][8]) begin
 				dataReceived = 1'b0;
 				silence = 1'b1;
 				#5;

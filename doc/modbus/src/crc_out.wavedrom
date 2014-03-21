@@ -5,7 +5,7 @@
   {name: 'sstate',		wave: '2.22|2.|.2222..', data: "WAIT X1 X2 X3 X4 C0 C1 WAIT"},
   {name: 'dataOut',		wave: 'x.22|2.|.222x..', data: "D1 D2 D3 D4 C0 C1"},
   {name: 'crcClk',	 	wave: 'p...|..|.......'},
-  {name: 'crcDataIn',	wave: 'x..22|2.|.2x...', data: "D1 D2 D3 D4 C0 C1", phase: 0.5},
-  {name: 'crcEnabled',  wave: '0..1|.0|.1.0...', phase: 0.5},
+  {name: 'crcDataIn',	wave: 'x.22|2.|.2x....', data: "D1 D2 D3 D4 C0 C1"},
+  {name: 'crcEnabled',  wave: '0.1.|.0|.10.....'},
   {name: 'crcRst',		wave: '1.0.|..|....1..'}
 ]}
