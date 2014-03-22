@@ -13,13 +13,13 @@
 //	 crc[15:0]=1+x^2+x^15+x^16;
 //
 module Crc(
-	input [7:0] data_in,
+	input [0:7] data_in,
 	input        crc_en,
-	output [15:0] crc_out,
+	output [0:15] crc_out,
 	input        rst,
 	input        clk);
 
-	reg [15:0] lfsr_q,
+	reg [0:15] lfsr_q,
 	           lfsr_c;
 	assign crc_out = lfsr_q;
 	always @(*) begin
