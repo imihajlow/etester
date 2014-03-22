@@ -83,13 +83,13 @@ module FakeUartRx(
 	reg dataReceived = 1'b0;
 	initial begin
 		data[0] = 9'h37;
-		data[1] = 9'h06;
+		data[1] = 9'h01;
 		data[2] = 9'h00;
 		data[3] = 9'h00;
 		data[4] = 9'ha5;
 		data[5] = 9'hff;
-		data[6] = 9'hb7;
-		data[7] = 9'h4c;
+		data[6] = 9'h02;
+		data[7] = 9'h8c;
 		data[8] = 9'h100;
 	end
 	assign dataOut = {1'b0, data[dataIndex][7:0]};

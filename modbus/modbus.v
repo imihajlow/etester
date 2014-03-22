@@ -1,3 +1,6 @@
+/*
+Реализованные функции:
+*/
 module ModbusToWishbone(
     input clk,
     input rst,
@@ -38,6 +41,10 @@ module ModbusToWishbone(
     localparam RSTATE_FUNCTION = 2;
     localparam RSTATE_CRC0 = 3;
     localparam RSTATE_CRC1 = 4;
+    localparam RSTATE_ADDRESS0 = 5;
+    localparam RSTATE_ADDRESS1 = 6;
+    localparam RSTATE_QUANTITY0 = 7;
+    localparam RSTATE_QUANTITY1 = 8;
 
     localparam SSTATE_WAIT = 0;
     localparam SSTATE_ADDRESS = 1;
@@ -47,6 +54,11 @@ module ModbusToWishbone(
     localparam SSTATE_CRC1 = 5;
     localparam SSTATE_BEGIN = 6;
     localparam SSTATE_END = 7;
+
+    localparam FUN_READ_COILS = 8'h01;
+    localparam FUN_READ_DISCRETE_INPUTS = 8'h02;
+    localparam FUN_READ_HOLDING_REGISTERS = 8'h04;
+    localparam FUN_READ_INPUT_REGISTER = 8'h04;
 
     localparam FUN_WRITE_SINGLE_REGISTER = 8'h06;
 
@@ -63,8 +75,9 @@ module ModbusToWishbone(
     wire [15:0] expectedCrc = {dataIn[7:0], expectedCrcLo};
     wire crcRst = rstate == RSTATE_ADDRESS || rstate == RSTATE_WAIT;
     reg crcEnabled = 1'b0;
+    reg [7:0] crcData = 8'b0;
     Crc _crc(
-        .data_in(dataIn[7:0]),
+        .data_in(crcData),
         .crc_en(crcEnabled),
         .crc_out(crc),
         .rst(crcRst),
@@ -74,13 +87,51 @@ module ModbusToWishbone(
         if(rst) begin
             crcEnabled <= 1'b0;
         end else begin
-            if(rstate != RSTATE_CRC0 && rstate != RSTATE_CRC1)
+            if(rstate != RSTATE_CRC0 && rstate != RSTATE_CRC1) begin
                 crcEnabled <= dataReceived;
+                crcData <= dataIn[7:0];
+            end else
+                crcEnabled <= 1'b0;
         end
     end
     /* Input CRC end */
 
     /* Receive begin */
+    reg isFunctionSupported;
+    reg isFunctionRead;
+    reg isAddressValid;
+    reg isQuantityValid;
+    always @(dataIn[7:0], startAddressLo, startAddress, quantityLo) begin
+        case(dataIn[7:0])
+            FUN_READ_COILS,
+            FUN_READ_DISCRETE_INPUTS,
+            FUN_READ_HOLDING_REGISTERS,
+            FUN_READ_INPUT_REGISTER: begin
+                isFunctionSupported = 1'b1;
+                isFunctionRead = 1'b1;
+            end
+            default: begin
+                isFunctionSupported = 1'b0;
+                isFunctionRead = 1'b0;
+            end
+        endcase
+
+        /*case(modbusFunction)
+            FUN_READ_COILS,
+            FUN_READ_DISCRETE_INPUTS,
+            FUN_READ_HOLDING_REGISTERS,
+            FUN_READ_INPUT_REGISTER: begin
+        endcase*/
+        isAddressValid = 1'b1;
+        isQuantityValid = 1'b1;
+    end
+
+    reg [7:0] startAddressLo = 8'h0, startAddressHi = 8'h0;
+    wire [15:0] startAddress = { startAddressHi, startAddressLo };
+    
+    reg [7:0] quantityLo = 8'h0, quantityHi = 8'h0;
+    wire [15:0] quantity = { quantityHi, quantityLo };
+
     always @(posedge clk) begin
         if(rst) begin
         end else begin
@@ -96,7 +147,6 @@ module ModbusToWishbone(
                             RSTATE_ADDRESS: begin
                                 if(dataIn[7:0] == MODBUS_STATION_ADDRESS) begin
                                     rstate <= RSTATE_FUNCTION;
-                                    $display("My address");
                                 end else begin
                                     rstate <= RSTATE_WAIT;
                                     $display("Unknown address");
@@ -104,11 +154,19 @@ module ModbusToWishbone(
                             end
                             RSTATE_FUNCTION: begin
                                 modbusFunction <= dataIn[7:0];
-                                rstate <= RSTATE_WAIT;
-                                sstate <= SSTATE_BEGIN;
-                                error <= 1'b1;
-                                exceptionCode <= 8'h1;
-                                $display("Unknown function");
+                                if(isFunctionSupported) begin
+                                    if(isFunctionRead) begin
+                                        rstate <= RSTATE_ADDRESS0;
+                                    end else begin
+                                        $display("Function %h is not implemented", dataIn[7:0]);
+                                    end
+                                end else begin
+                                    rstate <= RSTATE_WAIT;
+                                    sstate <= SSTATE_BEGIN;
+                                    error <= 1'b1;
+                                    exceptionCode <= 8'h1;
+                                    $display("Unknown function %h", dataIn[7:0]);
+                                end
                             end
                             RSTATE_CRC0: begin
                                 expectedCrcLo <= dataIn[7:0];
@@ -117,11 +175,40 @@ module ModbusToWishbone(
                             RSTATE_CRC1: begin
                                 if(expectedCrc == crc) begin
                                     $display("CRC OK");
-                                    sstate <= SSTATE_BEGIN;
+                                    //sstate <= SSTATE_BEGIN;
                                 end else begin
                                     $display("CRC fail");
                                 end
                                 rstate <= RSTATE_ADDRESS;
+                            end
+                            RSTATE_ADDRESS0: begin
+                                rstate <= RSTATE_ADDRESS1;
+                                startAddressLo <= dataIn[7:0];
+                            end
+                            RSTATE_ADDRESS1: begin
+                                rstate <= RSTATE_QUANTITY0;
+                                startAddressHi <= dataIn[7:0];
+                            end
+                            RSTATE_QUANTITY0: begin
+                                rstate <= RSTATE_QUANTITY1;
+                                quantityLo <= dataIn[7:0];
+                            end
+                            RSTATE_QUANTITY1: begin
+                                if(isAddressValid && isQuantityValid) begin
+                                    rstate <= RSTATE_CRC0;
+                                    quantityHi <= dataIn[7:0];
+                                end else begin
+                                    rstate <= RSTATE_WAIT;
+                                    sstate <= SSTATE_BEGIN;
+                                    error <= 1'b1;
+                                    if(~isQuantityValid) begin
+                                        exceptionCode <= 8'h03;
+                                        $display("Invalid quantity %h", {dataIn[7:0], quantityLo});
+                                    end else begin
+                                        exceptionCode <= 8'h02;
+                                        $display("Invalid address %h", startAddress);
+                                    end
+                                end
                             end
                             RSTATE_WAIT: ;
                             default: begin
@@ -171,13 +258,11 @@ module ModbusToWishbone(
                     end
                     SSTATE_CRC0: begin
                         dataOut <= crcOut[7:0];
-                        $display("crcOut[7:0] = %h", crcOut[7:0]);
                         sstate <= SSTATE_CRC1;
                         crcOutEnabled <= 1'b0;
                     end
                     SSTATE_CRC1: begin
                         dataOut <= crcOut[15:8];
-                        $display("crcOut[15:8] = %h", crcOut[15:8]);
                         sstate <= SSTATE_END;
                     end
                     SSTATE_ADDRESS: begin
