@@ -11,17 +11,23 @@ module ModbusTestbench();
 	wire silence, receiveReq;
 	wire fifoClk, full, writeReq;
 	wire [7:0] dataOut;
+    wire wbAdrO;
+    wire [DATA_WIDTH-1:0] wbDatO;
+    wire [DATA_WIDTH-1:0] wbDatI;
+    wire wbCycO;
+    wire wbStbO;
+    wire wbAckI;
+    wire wbWeO;
 	ModbusToWishbone _m(
 		.clk(clk),
 		.rst(rst),
-		/*output [ADDRESS_WIDTH-1:0] adr_o,
-		output [DATA_WIDTH-1:0] dat_o,
-		input [DATA_WIDTH-1:0] dat_i,
-		output cyc_o,
-		output stb_o,
-		input ack_i,
-		output we_o,*/
-
+        .wbAdrO(wbAdrO),
+        .wbDatO(wbDatO),
+        .wbDatI(wbDatI),
+        .wbCycO(wbCycO),
+        .wbStbO(wbStbO),
+        .wbAckI(wbAckI),
+        .wbWeO(wbWeO),
 		// Input UART
 		.uartClk(uartClk),
 		.dataIn(dataIn),
@@ -46,6 +52,17 @@ module ModbusTestbench();
 		.dataOut(dataIn),
 		.silence(silence)
 	);
+    FakeWishboneSlave _slave(
+        .clk(clk),
+        .rst(rst),
+        .stb_i(wbStbO),
+        .cyc_i(wbCycO),
+        .we_i(wbWeO),
+        .ack_o(wbAckI),
+        .dat_i(wbDatO),
+        .dat_o(wbDatI),
+        .adr_i(wbAdrO)
+    );
 	reg writeAck = 1'b0;
 	always begin
 		clk = 1'b0;
@@ -112,4 +129,42 @@ module FakeUartRx(
 			end
 		end
 	end
+endmodule
+
+module FakeWishboneSlave(
+    input clk,
+    input rst,
+    input stb_i,
+    input cyc_i,
+    input we_i,
+    output ack_o,
+    input [15:0] dat_i,
+    output [15:0] dat_o,
+    input [23:0] adr_i
+);
+    parameter DATA_OFFSET = 24'hA00000;
+    reg ack_o = 1'b0;
+    reg [15:0] dat_o = 16'd0;
+
+    reg [15:0] data[1023:0];
+    integer i;
+    initial begin
+        for(i = 0; i < 1024; ++i)
+            data[i] = i * 3;
+    end
+
+    always @(negedge clk) begin
+        if(rst) begin
+            ack_o <= 1'b0;
+            dat_o <= 16'd0;
+        end else begin
+            ack_o <= stb_i & cyc_i;
+            if(addr_i - DATA_OFFSET >= 1024) begin
+                $display("Invalid address: %h", adr_i);
+            end
+            if(we_i)
+                data[adr_i - DATA_OFFSET] <= dat_i;
+            dat_o <= data[adr_i - DATA_OFFSET];
+        end
+    end
 endmodule
