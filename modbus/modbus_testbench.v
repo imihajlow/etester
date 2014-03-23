@@ -159,12 +159,14 @@ module FakeWishboneSlave(
             dat_o <= 16'd0;
         end else begin
             ack_o <= stb_i & cyc_i;
-            if(addr_i - DATA_OFFSET >= 1024) begin
-                $display("Invalid address: %h", adr_i);
+            if(stb_i & cyc_i) begin
+                if(addr_i - DATA_OFFSET >= 1024) begin
+                    $display("Invalid address: %h", adr_i);
+                end
+                if(we_i)
+                    data[adr_i - DATA_OFFSET] <= dat_i;
+                dat_o <= data[adr_i - DATA_OFFSET];
             end
-            if(we_i)
-                data[adr_i - DATA_OFFSET] <= dat_i;
-            dat_o <= data[adr_i - DATA_OFFSET];
         end
     end
 endmodule
