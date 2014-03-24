@@ -37,9 +37,46 @@ module ModbusToWishbone(
     parameter OFFSET_HOLDING_REGISTERS = 'hA00000;
     parameter QUANTITY_HOLDING_REGISTERS = 32;
 
+    localparam FUN_READ_COILS = 8'h01;
+    localparam FUN_READ_DISCRETE_INPUTS = 8'h02;
+    localparam FUN_READ_HOLDING_REGISTERS = 8'h03;
+    localparam FUN_READ_INPUT_REGISTERS = 8'h04;
+    localparam FUN_WRITE_SINGLE_REGISTER = 8'h06;
+    localparam FUN_WRITE_MULTIPLE_REGISTERS = 8'h10;
+
     assign uartClk = ~clk;
     assign fifoClk = ~clk;
     
+
+
+    /* Input CRC begin */
+    wire [15:0] icrcOut;
+    reg [7:0] expectedCrcLo = 8'h0;
+    wire [15:0] expectedCrc = {dataIn[7:0], expectedCrcLo};
+    wire icrcRst = rstate == RSTATE_ADDRESS || rstate == RSTATE_WAIT;
+    reg icrcEnabled = 1'b0;
+    reg [7:0] icrcData = 8'b0;
+    Crc _crc(
+        .data_in(icrcData),
+        .crc_en(icrcEnabled),
+        .crc_out(icrcOut),
+        .rst(icrcRst),
+        .clk(~clk)
+    );
+    always @(posedge clk) begin
+        if(rst) begin
+            icrcEnabled <= 1'b0;
+        end else begin
+            if(rstate != RSTATE_CRC_LO && rstate != RSTATE_CRC_HI) begin
+                icrcEnabled <= dataReceived;
+                icrcData <= dataIn[7:0];
+            end else
+                icrcEnabled <= 1'b0;
+        end
+    end
+    /* Input CRC end */
+
+    /* Receive begin */
     localparam RSTATE_ADDRESS = 0;
     localparam RSTATE_WAIT = 1;
     localparam RSTATE_FUNCTION = 2;
@@ -49,81 +86,56 @@ module ModbusToWishbone(
     localparam RSTATE_ADDRESS_HI = 6;
     localparam RSTATE_QUANTITY_LO = 7;
     localparam RSTATE_QUANTITY_HI = 8;
-
-
-    localparam FUN_READ_COILS = 8'h01;
-    localparam FUN_READ_DISCRETE_INPUTS = 8'h02;
-    localparam FUN_READ_HOLDING_REGISTERS = 8'h03;
-    localparam FUN_READ_INPUT_REGISTERS = 8'h04;
-
-    localparam FUN_WRITE_SINGLE_REGISTER = 8'h06;
-
+    localparam RSTATE_DATA_LO = 9;
+    localparam RSTATE_DATA_HI = 10;
+    localparam RSTATE_BYTE_COUNT = 11;
     reg [7:0] rstate = RSTATE_ADDRESS;
 
-
-    /* Input CRC begin */
-    wire [15:0] crc;
-    reg [7:0] expectedCrcLo = 8'h0;
-    wire [15:0] expectedCrc = {dataIn[7:0], expectedCrcLo};
-    wire crcRst = rstate == RSTATE_ADDRESS || rstate == RSTATE_WAIT;
-    reg crcEnabled = 1'b0;
-    reg [7:0] crcData = 8'b0;
-    Crc _crc(
-        .data_in(crcData),
-        .crc_en(crcEnabled),
-        .crc_out(crc),
-        .rst(crcRst),
-        .clk(~clk)
-    );
-    always @(posedge clk) begin
-        if(rst) begin
-            crcEnabled <= 1'b0;
-        end else begin
-            if(rstate != RSTATE_CRC_LO && rstate != RSTATE_CRC_HI) begin
-                crcEnabled <= dataReceived;
-                crcData <= dataIn[7:0];
-            end else
-                crcEnabled <= 1'b0;
-        end
-    end
-    /* Input CRC end */
-
-    /* Receive begin */
-    reg isFunctionSupported;
-    reg isFunctionRead;
+    reg isTempFunctionSupported;
     reg isAddressValid;
+    reg isTempQuantityValid;
     reg isQuantityValid;
+    reg isTempByteCountValid;
     wire [15:0] tempQuantity = {quantityHi, dataIn[7:0]};
     wire [7:0] tempFunction = dataIn[7:0];
+    wire [7:0] tempByteCount = dataIn[7:0];
     reg [7:0] modbusFunction = 8'd0;
-    always @(tempFunction, startAddress, tempQuantity) begin
+    always @(tempFunction, startAddress, tempQuantity, quantity, tempByteCount) begin
         case(tempFunction)
             FUN_READ_COILS,
             FUN_READ_DISCRETE_INPUTS: begin
-                isFunctionSupported = 1'b0;
-                isFunctionRead = 1'b1;
+                isTempFunctionSupported = 1'b0;
             end
             FUN_READ_HOLDING_REGISTERS,
             FUN_READ_INPUT_REGISTERS: begin
-                isFunctionSupported = 1'b1;
-                isFunctionRead = 1'b1;
+                isTempFunctionSupported = 1'b1;
+            end
+            FUN_WRITE_MULTIPLE_REGISTERS: begin
+                isTempFunctionSupported = 1'b1;
             end
             default: begin
-                isFunctionSupported = 1'b0;
-                isFunctionRead = 1'b0;
+                isTempFunctionSupported = 1'b0;
             end
         endcase
 
         case(modbusFunction)
             FUN_READ_COILS,
             FUN_READ_DISCRETE_INPUTS: begin
-                isQuantityValid = tempQuantity <= 16'h07d0 && tempQuantity >= 16'h0001;
+                isTempQuantityValid = tempQuantity <= 16'h07d0 && tempQuantity >= 16'h0001;
+                isQuantityValid = quantity <= 16'h07d0 && quantity >= 16'h0001;
             end
             FUN_READ_HOLDING_REGISTERS,
             FUN_READ_INPUT_REGISTERS: begin
-                isQuantityValid = tempQuantity <= 16'h007d && tempQuantity >= 16'h0001;
+                isTempQuantityValid = tempQuantity <= 16'h007d && tempQuantity >= 16'h0001;
+                isQuantityValid = quantity <= 16'h007d && quantity >= 16'h0001;
             end
+            FUN_WRITE_MULTIPLE_REGISTERS: begin
+                isTempQuantityValid = tempQuantity <= 16'h007b && tempQuantity >= 16'h0001;
+                isQuantityValid = quantity <= 16'h007b && quantity >= 16'h0001;
+            end
+
             default: begin
+                isTempQuantityValid = 1'b0;
                 isQuantityValid = 1'b0;
             end
         endcase
@@ -139,9 +151,19 @@ module ModbusToWishbone(
             FUN_READ_INPUT_REGISTERS: begin
                 isAddressValid = startAddress + tempQuantity <= QUANTITY_INPUT_REGISTERS;
             end
+            FUN_WRITE_MULTIPLE_REGISTERS: begin
+                isAddressValid = startAddress + tempQuantity <= QUANTITY_HOLDING_REGISTERS;
+            end
             default: begin
                 isAddressValid = 1'b0;
             end
+        endcase
+
+        case(modbusFunction)
+            FUN_WRITE_MULTIPLE_REGISTERS:
+                isTempByteCountValid = tempByteCount == {quantity[6:0], 1'b0};
+            default:
+                isTempByteCountValid = 1'b0;
         endcase
     end // always
 
@@ -155,6 +177,9 @@ module ModbusToWishbone(
     reg [7:0] quantityHi = 8'h0;
     wire [15:0] quantity = { quantityHi, quantityLo };
 
+    reg [7:0] currentDataHi = 8'd0;
+    wire [15:0] currentData = {currentDataHi, dataIn[7:0]};
+
     reg processRequest = 1'b0;
     reg error = 1'b0;
     reg [7:0] exceptionCode = 8'h0;
@@ -163,6 +188,7 @@ module ModbusToWishbone(
             error <= 1'b0;
             exceptionCode <= 8'h0;
             processRequest <= 1'b0;
+            currentDataHi <= 8'd0;
         end else begin
             if(silence) begin
                 rstate <= RSTATE_ADDRESS;
@@ -183,13 +209,18 @@ module ModbusToWishbone(
                             end
                             RSTATE_FUNCTION: begin
                                 modbusFunction <= dataIn[7:0];
-                                if(isFunctionSupported) begin
-                                    if(isFunctionRead) begin
-                                        rstate <= RSTATE_ADDRESS_HI;
-                                    end else begin
-                                        $display("Function %h is not implemented", dataIn[7:0]);
-                                        rstate <= RSTATE_WAIT;
-                                    end
+                                if(isTempFunctionSupported) begin
+                                    case(tempFunction)
+                                        FUN_READ_HOLDING_REGISTERS,
+                                        FUN_READ_INPUT_REGISTERS,
+                                        FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                            rstate <= RSTATE_ADDRESS_HI;
+                                        end
+                                        default: begin
+                                            $display("Function %h is not implemented", dataIn[7:0]);
+                                            rstate <= RSTATE_WAIT;
+                                        end
+                                    endcase
                                 end else begin
                                     rstate <= RSTATE_WAIT;
                                     processRequest <= 1'b1;
@@ -203,7 +234,7 @@ module ModbusToWishbone(
                                 rstate <= RSTATE_CRC_HI;
                             end
                             RSTATE_CRC_HI: begin
-                                if(expectedCrc == crc) begin
+                                if(expectedCrc == icrcOut) begin
                                     $display("CRC OK");
                                     processRequest <= 1'b1;
                                 end else begin
@@ -220,25 +251,74 @@ module ModbusToWishbone(
                                 startAddressHi <= dataIn[7:0];
                             end
                             RSTATE_QUANTITY_LO: begin
-                                if(isAddressValid && isQuantityValid) begin
-                                    rstate <= RSTATE_CRC_LO;
-                                    quantityLo <= dataIn[7:0];
-                                end else begin
-                                    rstate <= RSTATE_WAIT;
-                                    processRequest <= 1'b1;
-                                    error <= 1'b1;
-                                    if(~isQuantityValid) begin
-                                        exceptionCode <= 8'h03;
-                                        $display("Invalid quantity %h", tempQuantity);
-                                    end else begin
-                                        exceptionCode <= 8'h02;
-                                        $display("Invalid address %h", startAddress);
+                                quantityLo <= dataIn[7:0];
+                                case(modbusFunction)
+                                    FUN_READ_HOLDING_REGISTERS,
+                                    FUN_READ_INPUT_REGISTERS: begin
+                                        if(isAddressValid && isTempQuantityValid) begin
+                                            rstate <= RSTATE_CRC_LO;
+                                        end else begin
+                                            rstate <= RSTATE_WAIT;
+                                            processRequest <= 1'b1;
+                                            error <= 1'b1;
+                                            if(~isTempQuantityValid) begin
+                                                exceptionCode <= 8'h03;
+                                                $display("Invalid quantity %h", tempQuantity);
+                                            end else begin
+                                                exceptionCode <= 8'h02;
+                                                $display("Invalid address %h", startAddress);
+                                            end
+                                        end
                                     end
-                                end
+                                    FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                        rstate <= RSTATE_BYTE_COUNT;
+                                        transactionBufferWritePtr <= 7'd0;
+                                    end
+                                    default: begin
+                                        rstate <= RSTATE_WAIT;
+                                        $display("Unexpected unknown function %h", modbusFunction);
+                                    end
+                                endcase
                             end
                             RSTATE_QUANTITY_HI: begin
                                 rstate <= RSTATE_QUANTITY_LO;
                                 quantityHi <= dataIn[7:0];
+                            end
+                            RSTATE_BYTE_COUNT: begin
+                                case(modbusFunction)
+                                    FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                        if(isAddressValid && isQuantityValid && isTempByteCountValid) begin
+                                            rstate <= RSTATE_DATA_HI;
+                                        end else begin
+                                            rstate <= RSTATE_WAIT;
+                                            processRequest <= 1'b1;
+                                            error <= 1'b1;
+                                            if(~isQuantityValid || ~isTempByteCountValid) begin
+                                                exceptionCode <= 8'h03;
+                                                $display("Invalid quantity %h or byte count %h", quantity, tempByteCount);
+                                            end else begin
+                                                exceptionCode <= 8'h02;
+                                                $display("Invalid address %h", startAddress);
+                                            end
+                                        end
+                                    end
+                                    default: begin
+                                        rstate <= RSTATE_WAIT;
+                                        $display("Unexpected unknown function %h", modbusFunction);
+                                    end
+                                endcase
+                            end
+                            RSTATE_DATA_HI: begin
+                                rstate <= RSTATE_DATA_LO;
+                                currentDataHi <= dataIn[7:0];
+                            end
+                            RSTATE_DATA_LO: begin
+                                transactionBuffer[transactionBufferWritePtr] <= currentData;
+                                transactionBufferWritePtr <= transactionBufferWritePtr + 7'd1;
+                                if(transactionBufferWritePtr == quantity[6:0] - 7'd1)
+                                    rstate <= RSTATE_CRC_LO;
+                                else
+                                    rstate <= RSTATE_DATA_HI;
                             end
                             RSTATE_WAIT: ;
                             default: begin
@@ -252,19 +332,6 @@ module ModbusToWishbone(
         end
     end
     /* Receive end */
-
-    /* Output CRC begin */
-    wire [15:0] crcOut;
-    wire crcOutRst = sstate == SSTATE_WAIT;
-    reg [7:0] crcOutDataIn = 8'b0;
-    Crc _crcOut(
-        .data_in(dataOut),
-        .crc_en(crcOutEnabled),
-        .crc_out(crcOut),
-        .rst(crcOutRst),
-        .clk(~clk)
-    );
-    /* Output CRC end */
 
     /**/
     reg [7:0] byteCount;
@@ -282,7 +349,8 @@ module ModbusToWishbone(
     reg [DATA_WIDTH-1:0] wbCurrentData = 0;
     always @(modbusFunction, quantity, startAddress) begin
         case(modbusFunction)
-            FUN_READ_HOLDING_REGISTERS: begin
+            FUN_READ_HOLDING_REGISTERS,
+            FUN_WRITE_MULTIPLE_REGISTERS: begin
                 wbStartAddress = OFFSET_HOLDING_REGISTERS + startAddress;
                 wbEndAddress = OFFSET_HOLDING_REGISTERS + startAddress + quantity;
             end
@@ -296,9 +364,21 @@ module ModbusToWishbone(
     /**/
 
     
+    /* Transaction buffer begin*/
+    reg [15:0] transactionBuffer [127:0];
+    reg [6:0] transactionBufferWritePtr = 7'd0;
+    reg [6:0] transactionBufferReadPtr = 7'd0;
+    always @(posedge clk) begin
+        if(rst) begin
+            transactionBufferWritePtr <= 7'd0;
+            transactionBufferReadPtr <= 7'd0;
+        end
+    end
+    /* Transaction buffer end*/
+
     /* Send begin */
     localparam SSTATE_WAIT = 0;
-    localparam SSTATE_ADDRESS = 1;
+    localparam SSTATE_STATION_ADDRESS = 1;
     localparam SSTATE_FUNCTION = 2;
     localparam SSTATE_ERROR_CODE = 3;
     localparam SSTATE_CRC_LO = 4;
@@ -309,6 +389,12 @@ module ModbusToWishbone(
     localparam SSTATE_DATA_LO = 10;
     localparam SSTATE_WB_READ = 11;
     localparam SSTATE_WB_WAIT_DATA_HI = 12;
+    localparam SSTATE_WB_WRITE = 13;
+    localparam SSTATE_WB_WRITE_ACK = 14;
+    localparam SSTATE_ADDRESS_HI = 15;
+    localparam SSTATE_ADDRESS_LO = 16;
+    localparam SSTATE_QUANTITY_HI = 17;
+    localparam SSTATE_QUANTITY_LO = 18;
 
     reg [7:0] sstate = SSTATE_WAIT;
     reg [7:0] dataOut = 8'h0;
@@ -324,7 +410,19 @@ module ModbusToWishbone(
                         $display("writeAck during SSTATE_WAIT");
                     end
                     if(processRequest) begin
-                        sstate <= SSTATE_BEGIN;
+                        case(modbusFunction)
+                            FUN_READ_HOLDING_REGISTERS,
+                            FUN_READ_INPUT_REGISTERS:
+                                sstate <= SSTATE_BEGIN;
+                            FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                sstate <= SSTATE_WB_WRITE;
+                                transactionBufferReadPtr <= 7'd0;
+                                wbCurrentAddress <= wbStartAddress;
+                            end
+                            default: begin
+                                $display("Unexpected unknown function %h", modbusFunction);
+                            end
+                        endcase
                         processRequest <= 1'b0;
                     end
                 end
@@ -334,17 +432,17 @@ module ModbusToWishbone(
                 end
                 SSTATE_CRC_LO: begin
                     if(writeAck) begin
-                        dataOut <= crcOut[7:0];
+                        dataOut <= ocrcOut[7:0];
                         sstate <= SSTATE_CRC_HI;
                     end
                 end
                 SSTATE_CRC_HI: begin
                     if(writeAck) begin
-                        dataOut <= crcOut[15:8];
+                        dataOut <= ocrcOut[15:8];
                         sstate <= SSTATE_END;
                     end
                 end
-                SSTATE_ADDRESS: begin
+                SSTATE_STATION_ADDRESS: begin
                     if(writeAck) begin
                         dataOut <= MODBUS_STATION_ADDRESS;
                         sstate <= SSTATE_FUNCTION;
@@ -356,11 +454,14 @@ module ModbusToWishbone(
                             dataOut <= { 1'b1, modbusFunction[6:0] };
                             sstate <= SSTATE_ERROR_CODE;
                         end else begin
+                            dataOut <= modbusFunction;
                             case(modbusFunction)
                                 FUN_READ_HOLDING_REGISTERS,
                                 FUN_READ_INPUT_REGISTERS: begin
-                                    dataOut <= modbusFunction;
                                     sstate <= SSTATE_BYTE_COUNT;
+                                end
+                                FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                    sstate <= SSTATE_ADDRESS_HI;
                                 end
                                 default: begin
                                     $display("Function %h is not implemented", modbusFunction);
@@ -413,29 +514,73 @@ module ModbusToWishbone(
                             sstate <= SSTATE_WB_READ;
                     end
                 end
+                SSTATE_WB_WRITE: begin
+                    sstate <= SSTATE_WB_WRITE_ACK;
+                    wbCurrentAddress <= wbCurrentAddress + 1;
+                end
+                SSTATE_WB_WRITE_ACK: begin
+                    if(wbAckI) begin
+                        if(wbCurrentAddress == wbEndAddress) begin
+                            sstate <= SSTATE_BEGIN;
+                        end else begin
+                            wbCurrentAddress <= wbCurrentAddress + 1;
+                        end
+                    end
+                end
+                SSTATE_ADDRESS_HI: begin
+                    dataOut <= startAddressHi;
+                    sstate <= SSTATE_ADDRESS_LO;
+                end
+                SSTATE_ADDRESS_LO: begin
+                    dataOut <= startAddressLo;
+                    sstate <= SSTATE_QUANTITY_HI;
+                end
+                SSTATE_QUANTITY_HI: begin
+                    dataOut <= quantityHi;
+                    sstate <= SSTATE_QUANTITY_LO;
+                end
+                SSTATE_QUANTITY_LO: begin
+                    dataOut <= quantityLo;
+                    sstate <= SSTATE_CRC_LO;
+                end
                 default: sstate <= SSTATE_WAIT;
             endcase
         end // rst
     end
     /* Send end */
 
-    /* crcOutEnabled begin */
-    reg crcOutEnabled = 1'b0;
+
+    /* Output CRC begin */
+    wire [15:0] ocrcOut;
+    wire ocrcRst = sstate == SSTATE_WAIT;
+    Crc _crcOut(
+        .data_in(dataOut),
+        .crc_en(ocrcEnabled),
+        .crc_out(ocrcOut),
+        .rst(ocrcRst),
+        .clk(~clk)
+    );
+    /* Output CRC end */
+
+    /* ocrcEnabled begin */
+    reg ocrcEnabled = 1'b0;
     always @(posedge clk) begin
         if(rst) begin
-            crcOutEnabled <= 1'b0;
+            ocrcEnabled <= 1'b0;
         end else begin
             case(sstate)
-                SSTATE_BEGIN: crcOutEnabled <= 1'b1;
-                SSTATE_WB_WAIT_DATA_HI: crcOutEnabled <= wbAckI;
+                SSTATE_BEGIN: ocrcEnabled <= 1'b1;
+                SSTATE_WB_WAIT_DATA_HI: ocrcEnabled <= wbAckI;
                 SSTATE_WB_READ,
+                SSTATE_WB_WRITE,
+                SSTATE_WB_WRITE_ACK,
                 SSTATE_CRC_LO,
-                SSTATE_CRC_HI: crcOutEnabled <= 1'b0;
-                default: crcOutEnabled <= writeAck;
+                SSTATE_CRC_HI: ocrcEnabled <= 1'b0;
+                default: ocrcEnabled <= writeAck;
             endcase
         end
     end
-    /* crcOutEnabled end */
+    /* ocrcEnabled end */
     
     /* writeReq begin */
     reg writeReq = 1'b0;
@@ -444,7 +589,9 @@ module ModbusToWishbone(
             writeReq <= 1'b0;
         end else begin
             case(sstate)
-                SSTATE_WAIT:
+                SSTATE_WAIT,
+                SSTATE_WB_WRITE,
+                SSTATE_WB_WRITE_ACK:
                     writeReq <= 1'b0;
                 SSTATE_END,
                 SSTATE_WB_READ:
@@ -484,6 +631,30 @@ module ModbusToWishbone(
                         wbCycO <= 1'b0;
                         wbStbO <= 1'b0;
                         wbWeO <= 1'b0;
+                    end
+                end
+                SSTATE_WB_WRITE: begin
+                    wbCycO <= 1'b1;
+                    wbStbO <= 1'b1;
+                    wbAdrO <= wbCurrentAddress;
+                    wbWeO <= 1'b1;
+                    wbDatO <= transactionBuffer[transactionBufferReadPtr];
+                    transactionBufferReadPtr <= transactionBufferReadPtr + 7'd1;
+                end
+                SSTATE_WB_WRITE_ACK: begin
+                    if(wbAckI) begin
+                        if(wbCurrentAddress == wbEndAddress) begin
+                            wbCycO <= 1'b0;
+                            wbWeO <= 1'b0;
+                            wbStbO <= 1'b0;
+                        end else begin
+                            wbCycO <= 1'b1;
+                            wbStbO <= 1'b1;
+                            wbAdrO <= wbCurrentAddress;
+                            wbWeO <= 1'b1;
+                            wbDatO <= transactionBuffer[transactionBufferReadPtr];
+                            transactionBufferReadPtr <= transactionBufferReadPtr + 7'd1;
+                        end
                     end
                 end
                 default: begin

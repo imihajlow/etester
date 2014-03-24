@@ -99,7 +99,7 @@ module FakeUartRx(
 	reg [3:0] dataIndex = 4'h0;
 	reg dataReceived = 1'b0;
 	initial begin
-		data[0] = 9'h37; // address
+		/*data[0] = 9'h37; // address
 		data[1] = 9'h03; // function
 		data[2] = 9'h00; // starting address hi
 		data[3] = 9'h05; // starting address lo
@@ -107,7 +107,21 @@ module FakeUartRx(
 		data[5] = 9'h02; // quantity lo
 		data[6] = 9'hD1; // crc lo
 		data[7] = 9'h9C; // crc hi
-		data[8] = 9'h100;
+		data[8] = 9'h100; */
+		data[0] = 9'h37; // address
+		data[1] = 9'h10; // function
+		data[2] = 9'h00; // starting address hi
+		data[3] = 9'h05; // starting address lo
+		data[4] = 9'h00; // quantity hi
+		data[5] = 9'h02; // quantity lo
+		data[6] = 9'h04; // byte count
+		data[7] = 9'ha5; // data[0] hi
+		data[8] = 9'h33; // data[0] lo
+		data[9] = 9'h00; // data[0] hi
+		data[10] = 9'hFF; // data[0] lo
+		data[11] = 9'h40; // crc lo
+		data[12] = 9'h9B; // crc hi
+		data[13] = 9'h100; 
 	end
 	assign dataOut = {1'b0, data[dataIndex][7:0]};
 	reg silence = 1'b0;
@@ -153,18 +167,23 @@ module FakeWishboneSlave(
             data[i] = i * 3;
     end
 
+    reg waitState = 1'b0;
     always @(negedge clk) begin
         if(rst) begin
             ack_o <= 1'b0;
             dat_o <= 16'd0;
+            waitState <= 1'b0;
         end else begin
-            ack_o <= stb_i & cyc_i;
-            if(stb_i & cyc_i) begin
+            waitState <= stb_i & cyc_i;
+            ack_o <= waitState;
+            if(waitState) begin
                 if(adr_i - DATA_OFFSET >= 1024) begin
                     $display("Invalid address: %h", adr_i);
                 end
-                if(we_i)
+                if(we_i) begin
                     data[adr_i - DATA_OFFSET] <= dat_i;
+                    $display("Write %h at %h", dat_i, adr_i);
+                end
                 dat_o <= data[adr_i - DATA_OFFSET];
             end
         end
