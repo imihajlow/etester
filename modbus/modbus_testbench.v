@@ -11,9 +11,9 @@ module ModbusTestbench();
 	wire silence, receiveReq;
 	wire fifoClk, full, writeReq;
 	wire [7:0] dataOut;
-    wire wbAdrO;
-    wire [DATA_WIDTH-1:0] wbDatO;
-    wire [DATA_WIDTH-1:0] wbDatI;
+    wire [23:0] wbAdrO;
+    wire [15:0] wbDatO;
+    wire [15:0] wbDatI;
     wire wbCycO;
     wire wbStbO;
     wire wbAckI;
@@ -99,14 +99,14 @@ module FakeUartRx(
 	reg [3:0] dataIndex = 4'h0;
 	reg dataReceived = 1'b0;
 	initial begin
-		data[0] = 9'h37;
-		data[1] = 9'h01;
-		data[2] = 9'h00;
-		data[3] = 9'h00;
-		data[4] = 9'ha5;
-		data[5] = 9'hff;
-		data[6] = 9'h02;
-		data[7] = 9'h8c;
+		data[0] = 9'h37; // address
+		data[1] = 9'h03; // function
+		data[2] = 9'h00; // starting address hi
+		data[3] = 9'h05; // starting address lo
+		data[4] = 9'h00; // quantity hi
+		data[5] = 9'h02; // quantity lo
+		data[6] = 9'hD1; // crc lo
+		data[7] = 9'h9C; // crc hi
 		data[8] = 9'h100;
 	end
 	assign dataOut = {1'b0, data[dataIndex][7:0]};
@@ -149,7 +149,7 @@ module FakeWishboneSlave(
     reg [15:0] data[1023:0];
     integer i;
     initial begin
-        for(i = 0; i < 1024; ++i)
+        for(i = 0; i < 1024; i = i + 1)
             data[i] = i * 3;
     end
 
@@ -160,7 +160,7 @@ module FakeWishboneSlave(
         end else begin
             ack_o <= stb_i & cyc_i;
             if(stb_i & cyc_i) begin
-                if(addr_i - DATA_OFFSET >= 1024) begin
+                if(adr_i - DATA_OFFSET >= 1024) begin
                     $display("Invalid address: %h", adr_i);
                 end
                 if(we_i)
