@@ -36,6 +36,7 @@ module ModbusToWishbone(
     parameter QUANTITY_INPUT_REGISTERS = 32;
     parameter OFFSET_HOLDING_REGISTERS = 'hA00000;
     parameter QUANTITY_HOLDING_REGISTERS = 32;
+    parameter OFFSET_FILES = 'hB00000;
 
     localparam FUN_READ_COILS = 8'h01;
     localparam FUN_READ_DISCRETE_INPUTS = 8'h02;
@@ -43,38 +44,11 @@ module ModbusToWishbone(
     localparam FUN_READ_INPUT_REGISTERS = 8'h04;
     localparam FUN_WRITE_SINGLE_REGISTER = 8'h06;
     localparam FUN_WRITE_MULTIPLE_REGISTERS = 8'h10;
+    localparam FUN_READ_FILE_RECORD = 8'h14;
+    localparam FUN_WRITE_FILE_RECORD = 8'h15;
 
     assign uartClk = ~clk;
     assign fifoClk = ~clk;
-    
-
-
-    /* Input CRC begin */
-    wire [15:0] icrcOut;
-    reg [7:0] expectedCrcLo = 8'h0;
-    wire [15:0] expectedCrc = {uartDataIn[7:0], expectedCrcLo};
-    wire icrcRst = rstate == RSTATE_ADDRESS || rstate == RSTATE_WAIT;
-    reg icrcEnabled = 1'b0;
-    reg [7:0] icrcData = 8'b0;
-    Crc _crc(
-        .data_in(icrcData),
-        .crc_en(icrcEnabled),
-        .crc_out(icrcOut),
-        .rst(icrcRst),
-        .clk(~clk)
-    );
-    always @(posedge clk) begin
-        if(rst) begin
-            icrcEnabled <= 1'b0;
-        end else begin
-            if(rstate != RSTATE_CRC_LO && rstate != RSTATE_CRC_HI) begin
-                icrcEnabled <= uartDataReceived;
-                icrcData <= uartDataIn[7:0];
-            end else
-                icrcEnabled <= 1'b0;
-        end
-    end
-    /* Input CRC end */
 
     /* Receive begin */
     localparam RSTATE_ADDRESS = 0;
@@ -332,6 +306,33 @@ module ModbusToWishbone(
         end
     end
     /* Receive end */
+
+    /* Input CRC begin */
+    wire [15:0] icrcOut;
+    reg [7:0] expectedCrcLo = 8'h0;
+    wire [15:0] expectedCrc = {uartDataIn[7:0], expectedCrcLo};
+    wire icrcRst = rstate == RSTATE_ADDRESS || rstate == RSTATE_WAIT;
+    reg icrcEnabled = 1'b0;
+    reg [7:0] icrcData = 8'b0;
+    Crc _crc(
+        .data_in(icrcData),
+        .crc_en(icrcEnabled),
+        .crc_out(icrcOut),
+        .rst(icrcRst),
+        .clk(~clk)
+    );
+    always @(posedge clk) begin
+        if(rst) begin
+            icrcEnabled <= 1'b0;
+        end else begin
+            if(rstate != RSTATE_CRC_LO && rstate != RSTATE_CRC_HI) begin
+                icrcEnabled <= uartDataReceived;
+                icrcData <= uartDataIn[7:0];
+            end else
+                icrcEnabled <= 1'b0;
+        end
+    end
+    /* Input CRC end */
 
     /**/
     reg [7:0] byteCount;

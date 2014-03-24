@@ -38,7 +38,7 @@ module Port(
                     1'b0: begin
                         if(wbWeI)
                             data <= wbDatI;
-                        wbDatO <= data;
+                        wbDatO <= port;
                     end
                     1'b1: begin
                         if(wbWeI)
