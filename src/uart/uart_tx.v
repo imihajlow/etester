@@ -6,7 +6,7 @@ module UartTransmitter(
     input hasParity,
     input [1:0] parityMode, // 00 - space, 11 - mark, 10 - even, 01 - odd
     input extraStopBit,
-    input [CLOCK_DIVISOR_WIDTH-1:0] clockDivisor,
+    input [CLOCK_DIVISOR_WIDTH-1:0] clockDivisor,// f_uart = f_clk / (4 * clockDivisor + 2)
 
     output ready,
     input [7:0] data,
@@ -27,24 +27,21 @@ module UartTransmitter(
 
     reg [CLOCK_DIVISOR_WIDTH-1:0] clockCounter = 0;
     wire uartClkEnabled = state != STATE_IDLE;
-    reg uartClk = 1'b0;
-    always @(posedge clk) begin
+    wire uartClk = (clockCounter == latchedClockDivisor << 1) && uartClkEnabled;
+    always @(negedge clk) begin
         if(rst) begin
             clockCounter <= 0;
         end else begin
             if(state == STATE_IDLE) begin
                 clockCounter <= 0;
-                uartClk <= 1'b0;
             end else begin
                 if(!uartClkEnabled) begin
                     clockCounter <= 0;
-                    uartClk <= 1'b0;
                 end else begin
-                    if(clockCounter != latchedClockDivisor)
+                    if(clockCounter != latchedClockDivisor << 1)
                         clockCounter <= clockCounter + 1;
                     else begin
                         clockCounter <= 0;
-                        uartClk <= ~uartClk;
                     end
                 end
             end
@@ -84,41 +81,43 @@ module UartTransmitter(
 
     reg firstStopBitTransmitted = 1'b0;
     reg [2:0] dataBitsRemaining = 3'd0;
-    always @(posedge uartClk) begin
-        case(state)
-            STATE_IDLE: tx <= 1'b1;
-            STATE_START: begin
-                tx <= 1'b0;
-                state <= STATE_DATA;
-                dataBitsRemaining <= latchedDataBits + 3'd4;
-            end
-            STATE_DATA: begin
-                tx <= latchedData[0];
-                latchedData <= latchedData >> 1;
-                dataBitsRemaining <= dataBitsRemaining - 1;
-                if(dataBitsRemaining == 3'd0) begin
-                    if(latchedHasParity)
-                        state <= STATE_PAR;
-                    else
-                        state <= STATE_STOP;
+    always @(posedge clk) begin
+        if(uartClk) begin
+            case(state)
+                STATE_IDLE: tx <= 1'b1;
+                STATE_START: begin
+                    tx <= 1'b0;
+                    state <= STATE_DATA;
+                    dataBitsRemaining <= latchedDataBits + 3'd4;
                 end
-            end
-            STATE_PAR: begin
-                tx <= parity;
-                state <= STATE_STOP;
-            end
-            STATE_STOP: begin
-                tx <= 1'b1;
-                firstStopBitTransmitted <= 1'b1;
-                if(firstStopBitTransmitted || !latchedExtraStopBit)
-                    state <= STATE_END;
-            end
-            STATE_END: begin
-                tx <= 1'b1;
-                state <= STATE_IDLE;
-            end
-            default: state <= STATE_IDLE;
-        endcase
+                STATE_DATA: begin
+                    tx <= latchedData[0];
+                    latchedData <= latchedData >> 1;
+                    dataBitsRemaining <= dataBitsRemaining - 1;
+                    if(dataBitsRemaining == 3'd0) begin
+                        if(latchedHasParity)
+                            state <= STATE_PAR;
+                        else
+                            state <= STATE_STOP;
+                    end
+                end
+                STATE_PAR: begin
+                    tx <= parity;
+                    state <= STATE_STOP;
+                end
+                STATE_STOP: begin
+                    tx <= 1'b1;
+                    firstStopBitTransmitted <= 1'b1;
+                    if(firstStopBitTransmitted || !latchedExtraStopBit)
+                        state <= STATE_END;
+                end
+                STATE_END: begin
+                    tx <= 1'b1;
+                    state <= STATE_IDLE;
+                end
+                default: state <= STATE_IDLE;
+            endcase
+        end
     end
 endmodule
 

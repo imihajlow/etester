@@ -6,7 +6,7 @@ module UartReceiver(
     input hasParity,
     input [1:0] parityMode, // 00 - space, 11 - mark, 10 - even, 01 - odd
     input extraStopBit,
-    input [CLOCK_DIVISOR_WIDTH-1:0] clockDivisor,
+    input [CLOCK_DIVISOR_WIDTH-1:0] clockDivisor, // f_uart = f_clk / (4 * clockDivisor + 2)
 
     output reg [8:0] dataOut,
     output reg dataReceived,
@@ -33,24 +33,21 @@ module UartReceiver(
     /* Slow clock begin */
     reg [CLOCK_DIVISOR_WIDTH-1:0] clockCounter = 0;
     wire uartClkEnabled = state != STATE_IDLE;
-    reg uartClk = 1'b0;
-    always @(posedge clk) begin
+    wire uartClk = clockCounter == latchedClockDivisor && uartClkEnabled;
+    always @(negedge clk) begin
         if(rst) begin
             clockCounter <= 0;
         end else begin
             if(state == STATE_IDLE) begin
                 clockCounter <= 0;
-                uartClk <= 1'b0;
             end else begin
                 if(!uartClkEnabled) begin
                     clockCounter <= 0;
-                    uartClk <= 1'b0;
                 end else begin
-                    if(clockCounter != latchedClockDivisor)
+                    if(clockCounter != latchedClockDivisor << 1)
                         clockCounter <= clockCounter + 1;
                     else begin
                         clockCounter <= 0;
-                        uartClk <= ~uartClk;
                     end
                 end
             end
@@ -60,39 +57,45 @@ module UartReceiver(
 
     /* Silence counter begin */
     reg [CLOCK_DIVISOR_WIDTH-1:0] silenceClockCounter = 0;
-    reg silenceClk = 1'b0;
+    wire silenceClk = silenceClockCounter >= clockDivisor << 1;
     reg [7:0] silenceCharsCounter = 0;
     initial begin
-        silence <= 1'b0;
+        silence = 1'b0;
     end
-    always @(posedge clk) begin
+    always @(negedge clk) begin
         if(rst) begin
             silenceClockCounter <= 0;
-            silenceCharsCounter <= 0;
-            silenceClk <= 1'b0;
         end else begin
-            if(silenceClockCounter >= clockDivisor) begin
-                silenceClk <= ~silenceClk;
+            if(silenceClockCounter >= clockDivisor << 1) begin
                 silenceClockCounter <= 0;
             end else begin
                 silenceClockCounter <= silenceClockCounter + 1;
             end
         end
     end
-    always @(posedge silenceClk) begin
+    always @(posedge clk) begin
         if(rst || ~rx || state != STATE_IDLE) begin
             silenceCharsCounter <= 0;
             silence <= 1'b0;
         end else begin
-            if(silenceCharsCounter == 33) begin
-                silence <= 1'b1;
-            end else begin
-                silenceCharsCounter <= silenceCharsCounter + 1;
-                silence <= 1'b0;
+            if(silenceClk) begin
+                if(silenceCharsCounter == 33) begin
+                    silence <= 1'b1;
+                end else begin
+                    silenceCharsCounter <= silenceCharsCounter + 1;
+                    silence <= 1'b0;
+                end
             end
         end
     end
     /* Silence counter end */
+
+    wire [3:0] totalDataBits = 4'd5 + latchedDataBits + latchedHasParity - 4'd1;
+    reg [3:0] dataCounter = 4'd0;
+    reg [8:0] currentData = 9'd0;
+
+    reg firstStopBitReceived = 1'b0;
+    wire currentParityError;
 
     always @(posedge clk) begin
         if(rst) begin
@@ -103,6 +106,45 @@ module UartReceiver(
             break <= 1'b0;
             state <= STATE_IDLE;
         end else begin
+            if(uartClk) begin
+                case(state)
+                    STATE_START:
+                        if(rx)
+                            state <= STATE_IDLE;
+                        else begin
+                            state <= STATE_DATA;
+                            dataCounter <= 0;
+                        end
+                    STATE_DATA: begin
+                            currentData[dataCounter] <= rx;
+                            $display("@%t got bit %b", $time, rx);
+                            if(dataCounter < totalDataBits) begin
+                                dataCounter <= dataCounter + 4'd1;
+                            end else begin
+                                state <= STATE_STOP;
+                                firstStopBitReceived <= 1'b0;
+                            end
+                        end
+                    STATE_STOP:
+                        if(rx) begin
+                            if(!latchedExtraStopBit || firstStopBitReceived) begin
+                                state <= STATE_IDLE;
+                                if(!receiveReq) begin
+                                    if(dataReceived)
+                                        overflow <= 1'b1;
+                                    dataReceived <= 1'b1;
+                                end
+                                dataOut <= currentData;
+                                parityError <= currentParityError;
+                                break <= 1'b0;
+                            end
+                            firstStopBitReceived <= 1'b1;
+                        end else begin
+                            break <= 1'b1;
+                            state <= STATE_IDLE;
+                        end
+                endcase
+            end // uartClk
             if(state == STATE_IDLE) begin
                 if(rx == 1'b0) begin
                     state <= STATE_START;
@@ -118,55 +160,8 @@ module UartReceiver(
                 overflow <= 1'b0;
                 break <= 1'b0;
             end
-        end
-    end
-
-    wire [3:0] totalDataBits = 4'd5 + latchedDataBits + latchedHasParity - 4'd1;
-    reg [3:0] dataCounter = 4'd0;
-    reg [8:0] currentData = 9'd0;
-
-    reg firstStopBitReceived = 1'b0;
-    wire currentParityError;
-
-    always @(posedge uartClk) begin
-        case(state)
-            STATE_START:
-                if(rx)
-                    state <= STATE_IDLE;
-                else begin
-                    state <= STATE_DATA;
-                    dataCounter <= 0;
-                end
-            STATE_DATA: begin
-                    currentData[dataCounter] <= rx;
-                    $display("@%t got bit %b", $time, rx);
-                    if(dataCounter < totalDataBits) begin
-                        dataCounter <= dataCounter + 4'd1;
-                    end else begin
-                        state <= STATE_STOP;
-                        firstStopBitReceived <= 1'b0;
-                    end
-                end
-            STATE_STOP:
-                if(rx) begin
-                    if(!latchedExtraStopBit || firstStopBitReceived) begin
-                        state <= STATE_IDLE;
-                        if(!receiveReq) begin
-                            if(dataReceived)
-                                overflow <= 1'b1;
-                            dataReceived <= 1'b1;
-                        end
-                        dataOut <= currentData;
-                        parityError <= currentParityError;
-                        break <= 1'b0;
-                    end
-                    firstStopBitReceived <= 1'b1;
-                end else begin
-                    break <= 1'b1;
-                    state <= STATE_IDLE;
-                end
-        endcase
-    end
+        end // rst
+    end // always
 
     ParityChecker parityChecker(
         .data(currentData),
