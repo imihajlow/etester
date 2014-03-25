@@ -14,10 +14,20 @@ module etester(
     wire rx;
     wire tx;
     wire rxReceiveReq;
+    wire clk;
+    wire [23:0] clockDivisor;
+    //assign clockDivisor = 24'd867; // 200 MHz
+    assign clockDivisor = 24'd433; // 100 Mhz
+    //assign clockDivisor = 24'd216; // 50 Mhz
 
     assign gpio[4] = tx;
     assign rx = gpio[3];
     
+    pll _pll(
+        .areset(rst),
+        .inclk0(osc),
+        .c0(clk)
+    );
     UartReceiver _r(
         .clk(mUartClk),
         .rst(rst),
@@ -27,7 +37,7 @@ module etester(
         .hasParity(1'b0),
         .parityMode(2'b11),
         .extraStopBit(1'b0),
-        .clockDivisor(24'd216),
+        .clockDivisor(clockDivisor),
 
         .dataOut(rxDataOut),
         .dataReceived(rxDataReceived),
@@ -50,7 +60,7 @@ module etester(
         .hasParity(1'b0),
         .parityMode(2'b11),
         .extraStopBit(1'b0),
-        .clockDivisor(24'd216),
+        .clockDivisor(clockDivisor),
 
         .ready(txReady),
         .data(txData),
@@ -88,7 +98,7 @@ module etester(
 
     wire mFifoClk, mUartClk;
     ModbusToWishbone _m(
-        .clk(osc),
+        .clk(clk),
         .rst(rst),
         // Wishbone
         .wbAdrO(wbAdrO),
@@ -117,7 +127,7 @@ module etester(
     );
 
     WishboneRegs _regs(
-        .clk(osc),
+        .clk(clk),
         .rst(rst),
         .wbAdrI(wbAdrO),
         .wbDatI(wbDatO),

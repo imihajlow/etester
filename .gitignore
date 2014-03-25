@@ -7,3 +7,4 @@ output_files/
 simulation/
 *~
 *.vcd
+greybox_tmp/
