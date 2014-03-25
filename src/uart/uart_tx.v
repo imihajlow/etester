@@ -1,7 +1,7 @@
 module UartTransmitter(
     input clk,
     input rst,
-    output tx,
+    output reg tx,
     input [1:0] dataBits, // data bits count = dataBits + 5
     input hasParity,
     input [1:0] parityMode, // 00 - space, 11 - mark, 10 - even, 01 - odd
@@ -20,7 +20,7 @@ module UartTransmitter(
     localparam STATE_STOP = 3'd4;
     localparam STATE_END = 3'd5;
     
-    reg tx = 1'b1;
+    initial tx = 1'b1;
     assign ready = state == STATE_IDLE;
 
     reg [2:0] state = STATE_IDLE;
@@ -126,9 +126,8 @@ module UartTxParity(
     input [7:0] data,
     input [1:0] dataBits,
     input [1:0] parityMode,
-    output parity
+    output reg parity
 );
-    reg parity = 1'b0;
     wire [7:0] mask = ~((~8'h00) << (dataBits + 5));
     always @(*) begin
         case(parityMode)
