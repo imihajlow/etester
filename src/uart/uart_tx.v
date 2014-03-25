@@ -6,7 +6,7 @@ module UartTransmitter(
     input hasParity,
     input [1:0] parityMode, // 00 - space, 11 - mark, 10 - even, 01 - odd
     input extraStopBit,
-    input [CLOCK_DIVISOR_WIDTH-1:0] clockDivisor,// f_uart = f_clk / (4 * clockDivisor + 2)
+    input [CLOCK_DIVISOR_WIDTH-1:0] clockDivisor,// f_uart = f_clk / (2 * clockDivisor + 2)
 
     output ready,
     input [7:0] data,
