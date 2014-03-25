@@ -61,6 +61,9 @@ module UartTransmitter(
     reg [1:0] latchedParityMode = 2'd0;
     reg latchedExtraStopBit = 1'b0;
     reg [CLOCK_DIVISOR_WIDTH-1:0] latchedClockDivisor = 0;
+
+    reg firstStopBitTransmitted = 1'b0;
+    reg [2:0] dataBitsRemaining = 3'd0;
     always @(posedge clk) begin
         if(rst) begin
             tx <= 1'b1;
@@ -76,48 +79,43 @@ module UartTransmitter(
                 latchedExtraStopBit <= extraStopBit;
                 latchedClockDivisor <= clockDivisor;
             end
-        end
-    end
-
-    reg firstStopBitTransmitted = 1'b0;
-    reg [2:0] dataBitsRemaining = 3'd0;
-    always @(posedge clk) begin
-        if(uartClk) begin
-            case(state)
-                STATE_IDLE: tx <= 1'b1;
-                STATE_START: begin
-                    tx <= 1'b0;
-                    state <= STATE_DATA;
-                    dataBitsRemaining <= latchedDataBits + 3'd4;
-                end
-                STATE_DATA: begin
-                    tx <= latchedData[0];
-                    latchedData <= latchedData >> 1;
-                    dataBitsRemaining <= dataBitsRemaining - 1;
-                    if(dataBitsRemaining == 3'd0) begin
-                        if(latchedHasParity)
-                            state <= STATE_PAR;
-                        else
-                            state <= STATE_STOP;
+            if(uartClk) begin
+                case(state)
+                    STATE_IDLE: tx <= 1'b1;
+                    STATE_START: begin
+                        tx <= 1'b0;
+                        state <= STATE_DATA;
+                        dataBitsRemaining <= latchedDataBits + 3'd4;
                     end
-                end
-                STATE_PAR: begin
-                    tx <= parity;
-                    state <= STATE_STOP;
-                end
-                STATE_STOP: begin
-                    tx <= 1'b1;
-                    firstStopBitTransmitted <= 1'b1;
-                    if(firstStopBitTransmitted || !latchedExtraStopBit)
-                        state <= STATE_END;
-                end
-                STATE_END: begin
-                    tx <= 1'b1;
-                    state <= STATE_IDLE;
-                end
-                default: state <= STATE_IDLE;
-            endcase
-        end
+                    STATE_DATA: begin
+                        tx <= latchedData[0];
+                        latchedData <= latchedData >> 1;
+                        dataBitsRemaining <= dataBitsRemaining - 1;
+                        if(dataBitsRemaining == 3'd0) begin
+                            if(latchedHasParity)
+                                state <= STATE_PAR;
+                            else
+                                state <= STATE_STOP;
+                        end
+                    end
+                    STATE_PAR: begin
+                        tx <= parity;
+                        state <= STATE_STOP;
+                    end
+                    STATE_STOP: begin
+                        tx <= 1'b1;
+                        firstStopBitTransmitted <= 1'b1;
+                        if(firstStopBitTransmitted || !latchedExtraStopBit)
+                            state <= STATE_END;
+                    end
+                    STATE_END: begin
+                        tx <= 1'b1;
+                        state <= STATE_IDLE;
+                    end
+                    default: state <= STATE_IDLE;
+                endcase
+            end // uartClk
+        end // rst
     end
 endmodule
 
