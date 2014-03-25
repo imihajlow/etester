@@ -4,13 +4,13 @@ module ModbusToWishbone(
     input clk,
     input rst,
     // Wishbone
-    output [ADDRESS_WIDTH-1:0] wbAdrO,
-    output [DATA_WIDTH-1:0] wbDatO,
+    output reg [ADDRESS_WIDTH-1:0] wbAdrO,
+    output reg [DATA_WIDTH-1:0] wbDatO,
     input [DATA_WIDTH-1:0] wbDatI,
-    output wbCycO,
-    output wbStbO,
+    output reg wbCycO,
+    output reg wbStbO,
     input wbAckI,
-    output wbWeO,
+    output reg wbWeO,
 
     // Input UART
     output uartClk,
@@ -19,14 +19,14 @@ module ModbusToWishbone(
     input parityError,
     input overflow,
     input silence,
-    output uartReceiveReq,
+    output reg uartReceiveReq,
 
     // Output FIFO
     output fifoClk,
     input full,
-    output fifoWriteReq,
+    output reg fifoWriteReq,
     input fifoWriteAck,
-    output [7:0] fifoDataOut
+    output reg [7:0] fifoDataOut
 );
     parameter ADDRESS_WIDTH = 24;
     parameter DATA_WIDTH = 16;
@@ -74,7 +74,7 @@ module ModbusToWishbone(
     wire [7:0] tempFunction = uartDataIn[7:0];
     wire [7:0] tempByteCount = uartDataIn[7:0];
     reg [7:0] modbusFunction = 8'd0;
-    always @(tempFunction, startAddress, tempQuantity, quantity, tempByteCount) begin
+    always @(tempFunction, startAddress, tempQuantity, quantity, tempByteCount, modbusFunction) begin
         case(tempFunction)
             FUN_READ_COILS,
             FUN_READ_DISCRETE_INPUTS: begin
@@ -141,7 +141,7 @@ module ModbusToWishbone(
         endcase
     end // always
 
-    reg uartReceiveReq = 1'b0;
+    initial uartReceiveReq = 1'b0;
 
     reg [7:0] startAddressLo = 8'h0;
     reg [7:0] startAddressHi = 8'h0;
@@ -154,15 +154,62 @@ module ModbusToWishbone(
     reg [7:0] currentDataHi = 8'd0;
     wire [15:0] currentData = {currentDataHi, uartDataIn[7:0]};
 
+    /* processRequest begin */
     reg processRequest = 1'b0;
+    always @(posedge clk) begin
+        if(rst) begin
+            processRequest <= 1'b0;
+        end else begin
+            if(processRequest && sstate == SSTATE_WAIT) begin
+                processRequest <= 1'b0;
+            end
+            if(~silence && uartDataReceived && ~parityError) begin
+                case(rstate)
+                    RSTATE_FUNCTION: begin
+                        if(~isTempFunctionSupported)
+                            processRequest <= 1'b1;
+                    end
+                    RSTATE_CRC_HI: begin
+                        if(expectedCrc == icrcOut) begin
+                            $display("CRC OK");
+                            processRequest <= 1'b1;
+                        end else begin
+                            $display("CRC fail");
+                        end
+                    end
+                    RSTATE_QUANTITY_LO: begin
+                        case(modbusFunction)
+                            FUN_READ_HOLDING_REGISTERS,
+                            FUN_READ_INPUT_REGISTERS: begin
+                                if(~isAddressValid || ~isTempQuantityValid) begin
+                                    processRequest <= 1'b1;
+                                end
+                            end
+                        endcase
+                    end
+                    RSTATE_BYTE_COUNT: begin
+                        case(modbusFunction)
+                            FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                if(~isAddressValid || ~isQuantityValid || ~isTempByteCountValid) begin
+                                    processRequest <= 1'b1;
+                                end
+                            end
+                        endcase
+                    end
+                endcase
+            end
+        end
+    end
+    /* processRequest end */
+
     reg error = 1'b0;
     reg [7:0] exceptionCode = 8'h0;
     always @(posedge clk) begin
         if(rst) begin
             error <= 1'b0;
             exceptionCode <= 8'h0;
-            processRequest <= 1'b0;
             currentDataHi <= 8'd0;
+            transactionBufferWritePtr <= 7'd0;
         end else begin
             if(silence) begin
                 rstate <= RSTATE_ADDRESS;
@@ -197,7 +244,6 @@ module ModbusToWishbone(
                                     endcase
                                 end else begin
                                     rstate <= RSTATE_WAIT;
-                                    processRequest <= 1'b1;
                                     error <= 1'b1;
                                     exceptionCode <= 8'h1;
                                     $display("Unknown function %h", uartDataIn[7:0]);
@@ -208,12 +254,6 @@ module ModbusToWishbone(
                                 rstate <= RSTATE_CRC_HI;
                             end
                             RSTATE_CRC_HI: begin
-                                if(expectedCrc == icrcOut) begin
-                                    $display("CRC OK");
-                                    processRequest <= 1'b1;
-                                end else begin
-                                    $display("CRC fail");
-                                end
                                 rstate <= RSTATE_ADDRESS;
                             end
                             RSTATE_ADDRESS_LO: begin
@@ -233,7 +273,6 @@ module ModbusToWishbone(
                                             rstate <= RSTATE_CRC_LO;
                                         end else begin
                                             rstate <= RSTATE_WAIT;
-                                            processRequest <= 1'b1;
                                             error <= 1'b1;
                                             if(~isTempQuantityValid) begin
                                                 exceptionCode <= 8'h03;
@@ -265,7 +304,6 @@ module ModbusToWishbone(
                                             rstate <= RSTATE_DATA_HI;
                                         end else begin
                                             rstate <= RSTATE_WAIT;
-                                            processRequest <= 1'b1;
                                             error <= 1'b1;
                                             if(~isQuantityValid || ~isTempByteCountValid) begin
                                                 exceptionCode <= 8'h03;
@@ -359,7 +397,10 @@ module ModbusToWishbone(
                 wbStartAddress = OFFSET_INPUT_REGISTERS + startAddress;
                 wbEndAddress = OFFSET_INPUT_REGISTERS + startAddress + quantity;
             end
-            default: wbEndAddress = 0;
+            default: begin
+                wbEndAddress = 0;
+                wbStartAddress = 0;
+            end
         endcase
     end
     /**/
@@ -369,12 +410,6 @@ module ModbusToWishbone(
     reg [15:0] transactionBuffer [127:0];
     reg [6:0] transactionBufferWritePtr = 7'd0;
     reg [6:0] transactionBufferReadPtr = 7'd0;
-    always @(posedge clk) begin
-        if(rst) begin
-            transactionBufferWritePtr <= 7'd0;
-            transactionBufferReadPtr <= 7'd0;
-        end
-    end
     /* Transaction buffer end*/
 
     /* Send begin */
@@ -398,7 +433,7 @@ module ModbusToWishbone(
     localparam SSTATE_QUANTITY_LO = 18;
 
     reg [7:0] sstate = SSTATE_WAIT;
-    reg [7:0] fifoDataOut = 8'h0;
+    initial fifoDataOut = 8'h0;
 
     always @(posedge clk) begin
         if(rst) begin
@@ -417,14 +452,12 @@ module ModbusToWishbone(
                                 sstate <= SSTATE_BEGIN;
                             FUN_WRITE_MULTIPLE_REGISTERS: begin
                                 sstate <= SSTATE_WB_WRITE;
-                                transactionBufferReadPtr <= 7'd0;
                                 wbCurrentAddress <= wbStartAddress;
                             end
                             default: begin
                                 $display("Unexpected unknown function %h", modbusFunction);
                             end
                         endcase
-                        processRequest <= 1'b0;
                     end
                 end
                 SSTATE_BEGIN: begin
@@ -584,7 +617,7 @@ module ModbusToWishbone(
     /* ocrcEnabled end */
     
     /* fifoWriteReq begin */
-    reg fifoWriteReq = 1'b0;
+    initial fifoWriteReq = 1'b0;
     always @(posedge clk) begin
         if(rst) begin
             fifoWriteReq <= 1'b0;
@@ -607,9 +640,11 @@ module ModbusToWishbone(
     /* fifoWriteReq end */
 
     /* wishbone begin */
-    reg [DATA_WIDTH-1:0] wbDatO = 0;
-    reg [ADDRESS_WIDTH-1:0] wbAdrO = 0;
-    reg wbCycO = 1'b0, wbStbO = 1'b0, wbWeO = 1'b0;
+    initial wbDatO = 0;
+    initial wbAdrO = 0;
+    initial wbCycO = 1'b0;
+    initial wbStbO = 1'b0;
+    initial wbWeO = 1'b0;
     always @(posedge clk) begin
         if(rst) begin
             wbCycO <= 1'b0;
@@ -617,8 +652,18 @@ module ModbusToWishbone(
             wbWeO <= 1'b0;
             wbDatO <= 0;
             wbAdrO <= 0;
+            transactionBufferReadPtr <= 7'd0;
         end else begin
             case(sstate)
+                SSTATE_WAIT: begin
+                    if(processRequest) begin
+                        case(modbusFunction)
+                            FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                transactionBufferReadPtr <= 7'd0;
+                            end
+                        endcase
+                    end
+                end
                 SSTATE_WB_READ: begin
                     if(fifoWriteAck) begin
                         wbCycO <= 1'b1;

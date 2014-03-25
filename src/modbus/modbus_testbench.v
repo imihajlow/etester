@@ -30,19 +30,19 @@ module ModbusTestbench();
         .wbWeO(wbWeO),
 		// Input UART
 		.uartClk(uartClk),
-		.dataIn(dataIn),
-		.dataReceived(dataReceived),
+		.uartDataIn(dataIn),
+		.uartDataReceived(dataReceived),
 		.parityError(parityError),
 		.overflow(overflow),
 		.silence(silence),
-		.receiveReq(receiveReq),
+		.uartReceiveReq(receiveReq),
 
 		// Output FIFO
 		.fifoClk(fifoClk),
 		.full(full),
-		.writeReq(writeReq),
-		.writeAck(writeAck),
-		.dataOut(dataOut)
+		.fifoWriteReq(writeReq),
+		.fifoWriteAck(writeAck),
+		.fifoDataOut(dataOut)
 	);
 	FakeUartRx _uart(
 		.clk(uartClk),

@@ -5,11 +5,11 @@ module Fifo(
     output empty,
     output full,
     input readReq,
-    output readAck,
+    output reg readAck,
     input writeReq,
-    output writeAck,
+    output reg writeAck,
     input [DATA_WIDTH-1:0] dataIn,
-    output [DATA_WIDTH-1:0] dataOut
+    output reg [DATA_WIDTH-1:0] dataOut
 );
     parameter DATA_WIDTH = 16;
     parameter FIFO_LOG_LENGTH = 4;
@@ -18,11 +18,11 @@ module Fifo(
     reg [DATA_WIDTH-1:0] buffer[FIFO_LENGTH-1:0];
     reg [FIFO_LOG_LENGTH-1:0] getPtr = 0;
     reg [FIFO_LOG_LENGTH-1:0] putPtr = 0;
-    reg [DATA_WIDTH-1:0] dataOut = 0;
+    initial dataOut = 0;
     assign empty = getPtr == putPtr;
     assign full = (putPtr + 1) == getPtr;
-    reg readAck = 1'b0;
-    reg writeAck = 1'b0;
+    initial readAck = 1'b0;
+    initial writeAck = 1'b0;
 
     always @(posedge clk) begin
         if(rst) begin
