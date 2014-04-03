@@ -1,5 +1,6 @@
 *.o
 .*.swp
+.*.swo
 *.bak
 db/
 incremental_db/

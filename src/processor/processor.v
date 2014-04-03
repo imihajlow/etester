@@ -22,8 +22,9 @@ module Processor(
     input wbAckI,
     
     input [15:0] controlReg,
-    output reg [15:0] statusReg
+    output [15:0] statusReg
 );
+    parameter TIMEOUT_CLOCK_DIVISOR = 0;
     parameter ADDRESS_WIDTH = 24;
     parameter PROGMEM_START = 'h10000;
     parameter PROGMEM_END   = 'h1FFFF;
@@ -52,6 +53,14 @@ module Processor(
     wire controlHalt = controlReg[0];
     /* controlReg end */
 
+    /* statusReg begin */
+    wire isRunning = state != STATE_HALT && !isFailed && !isSucceeded;
+    wire isFailed = state == STATE_FAIL;
+    wire isSucceeded = state == STATE_SUCCESS;
+    assign statusReg = { 13'd0, isRunning, isFailed, isSucceeded };
+    /* statusReg end */
+
+    /* State machine begin */
     localparam STATE_HALT = 0;
     localparam STATE_FETCH_CMD_R = 1;
     localparam STATE_FETCH_CMD_A = 2;
@@ -76,89 +85,89 @@ module Processor(
             state <= STATE_HALT;
         end else begin
             case(state)
-            STATE_HALT: begin
-                state <= STATE_FETCH_CMD_R;
-            end
-            STATE_FETCH_CMD_R: begin
-                state <= STATE_FETCH_CMD_A;
-            end
-            STATE_FETCH_CMD_A: begin
-                if(wbAckI) begin
-                    case(tempOpcode)
-                        OPCODE_SET,
-                        OPCODE_WAIT: begin
-                            state <= STATE_FETCH_ADDR_A;
-                        end
-                        OPCODE_PAUSE: begin
-                            state <= STATE_FETCH_TIME_A;
-                        end
-                        OPCODE_WIN: begin
-                            state <= STATE_SUCCESS;
-                        end
-                        default: begin
-                            state <= STATE_FETCH_CMD_A;
-                        end
-                    endcase
+                STATE_HALT: begin
+                    state <= STATE_FETCH_CMD_R;
                 end
-            end
-            STATE_FETCH_ADDR_A: begin
-                if(wbAckI) begin
-                    case(opcode)
-                        OPCODE_SET: state <= STATE_FETCH_VAL_A;
-                        OPCODE_WAIT: state <= STATE_FETCH_VAL_BOT_A;
-                        default: begin
-                            $display("Automata error: bad opcode in STATE_FETCH_ADDR_A");
-                            state <= STATE_HALT;
-                        end
-                    endcase
-                end
-            end
-            STATE_FETCH_VAL_A: begin
-                if(wbAckI) begin
-                    state <= STATE_WRITE_REG_A;
-                end
-            end
-            STATE_FETCH_VAL_BOT_A: begin
-                if(wbAckI) begin
-                    state <= STATE_FETCH_VAL_TOP_A;
-                end
-            end
-            STATE_FETCH_VAL_TOP_A: begin
-                if(wbAckI) begin
-                    state <= STATE_FETCH_TIME_A;
-                end
-            end
-            STATE_FETCH_TIME_A: begin
-                if(wbAckI) begin
-                    case(opcode)
-                        OPCODE_PAUSE: state <= STATE_WAIT;
-                        OPCODE_WAIT: state <= STATE_READ_REG_A;
-                        default: begin
-                            $display("Automata error: bad opcode in STATE_FETCH_TIME_A");
-                            state <= STATE_HALT;
-                        end
-                    endcase
-                end
-            end
-            STATE_WRITE_REG_A: begin
-                if(wbAckI)
+                STATE_FETCH_CMD_R: begin
                     state <= STATE_FETCH_CMD_A;
-            end
-            STATE_READ_REG_A: begin
-                if(wbAckI) begin
-                    if(tempReg >= regBottom && tempReg <= regTop) begin
-                        state <= STATE_FETCH_CMD_A;
-                    end else begin
-                    /*
-                    if timeout
-                    */
+                end
+                STATE_FETCH_CMD_A: begin
+                    if(wbAckI) begin
+                        case(tempOpcode)
+                            OPCODE_SET,
+                            OPCODE_WAIT: begin
+                                state <= STATE_FETCH_ADDR_A;
+                            end
+                            OPCODE_PAUSE: begin
+                                state <= STATE_FETCH_TIME_A;
+                            end
+                            OPCODE_WIN: begin
+                                state <= STATE_SUCCESS;
+                            end
+                            default: begin
+                                state <= STATE_FETCH_CMD_A;
+                            end
+                        endcase
                     end
                 end
-            end
-
+                STATE_FETCH_ADDR_A: begin
+                    if(wbAckI) begin
+                        case(opcode)
+                            OPCODE_SET: state <= STATE_FETCH_VAL_A;
+                            OPCODE_WAIT: state <= STATE_FETCH_VAL_BOT_A;
+                            default: begin
+                                $display("Automata error: bad opcode in STATE_FETCH_ADDR_A");
+                                state <= STATE_HALT;
+                            end
+                        endcase
+                    end
+                end
+                STATE_FETCH_VAL_A: begin
+                    if(wbAckI) begin
+                        state <= STATE_WRITE_REG_A;
+                    end
+                end
+                STATE_FETCH_VAL_BOT_A: begin
+                    if(wbAckI) begin
+                        state <= STATE_FETCH_VAL_TOP_A;
+                    end
+                end
+                STATE_FETCH_VAL_TOP_A: begin
+                    if(wbAckI) begin
+                        state <= STATE_FETCH_TIME_A;
+                    end
+                end
+                STATE_FETCH_TIME_A: begin
+                    if(wbAckI) begin
+                        case(opcode)
+                            OPCODE_PAUSE: state <= STATE_WAIT;
+                            OPCODE_WAIT: state <= STATE_READ_REG_A;
+                            default: begin
+                                $display("Automata error: bad opcode in STATE_FETCH_TIME_A");
+                                state <= STATE_HALT;
+                            end
+                        endcase
+                    end
+                end
+                STATE_WRITE_REG_A: begin
+                    if(wbAckI)
+                        state <= STATE_FETCH_CMD_A;
+                end
+                STATE_READ_REG_A: begin
+                    if(wbAckI) begin
+                        if(tempReg >= regBottom && tempReg <= regTop) begin
+                            state <= STATE_FETCH_CMD_A;
+                        end else begin
+                            if(timeout) begin
+                                state <= STATE_FAIL;
+                            end
+                        end
+                    end
+                end
             endcase
         end
     end
+    /* State machine end */
 
     /* Wishbone begin */
     initial begin
@@ -240,9 +249,10 @@ module Processor(
                             wbCycO <= 1'b1;
                             wbStbO <= 1'b1;
                         end else begin
-                        /*
-                        if timeout
-                        */
+                            if(timeout) begin
+                                wbCycO <= 1'b0;
+                                wbStbO <= 1'b0;
+                            end
                         end
                     end
                 end
@@ -298,10 +308,6 @@ module Processor(
                     if(wbAckI) begin
                         if(tempReg >= regBottom && tempReg <= regTop) begin
                             wbAdrO <= instructionPointer;
-                        end else begin
-                        /*
-                        if timeout
-                        */
                         end
                     end
                 end
@@ -346,15 +352,17 @@ module Processor(
     end
     /* opcode end */
 
-    /* regAddress, regBottom and regTop begin */
+    /* timeoutValue, regAddress, regBottom and regTop begin */
     reg [15:0] regBottom = 16'd0;
     reg [15:0] regTop = 16'd0;
     reg [15:0] regAddress = 16'd0;
+    reg [15:0] timeoutValue = 16'd0;
     always @(posedge clk) begin
         if(rst || controlHalt) begin
             regBottom <= 16'd0;
             regTop <= 16'd0;
             regAddress <= 16'd0;
+            timeoutValue <= 16'd0;
         end else begin
             if(state == STATE_FETCH_VAL_BOT_A && wbAckI)
                 regBottom <= wbDatI;
@@ -362,7 +370,35 @@ module Processor(
                 regTop <= wbDatI;
             if(state == STATE_FETCH_ADDR_A && wbAckI)
                 regAddress <= wbDatI;
+            if(state == STATE_FETCH_TIME_A && wbAckI)
+                timeoutValue <= wbDatI;
         end
     end
-    /* regAddress, regBottom and regTop end */
+    /* timeoutValue, regAddress, regBottom and regTop end */
+
+    /* timeout begin */
+    wire timeout = timeoutCounter >= timeoutValue;
+    reg [15:0] slowClockCounter = 16'd0;
+    reg [15:0] timeoutCounter = 16'd0;
+    always @(posedge clk) begin
+        if(rst || controlHalt) begin
+            slowClockCounter <= 16'd0;
+        end else begin
+            case(state)
+                STATE_READ_REG_A,
+                STATE_WAIT: begin
+                    if(slowClockCounter == TIMEOUT_CLOCK_DIVISOR) begin
+                        slowClockCounter <= 16'd0;
+                        timeoutCounter <= timeoutCounter + 16'd1;
+                    end else
+                        slowClockCounter <= slowClockCounter + 16'd1;
+                end
+                default: begin
+                    slowClockCounter <= 16'd0;
+                    timeoutCounter <= 16'd0;
+                end
+            endcase
+        end
+    end
+    /* timeout end */
 endmodule
