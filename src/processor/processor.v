@@ -24,7 +24,7 @@ module Processor(
     input [15:0] controlReg,
     output [15:0] statusReg
 );
-    parameter TIMEOUT_CLOCK_DIVISOR = 0;
+    parameter TIMEOUT_CLOCK_DIVISOR = 1;
     parameter ADDRESS_WIDTH = 24;
     parameter PROGMEM_START = 'h10000;
     parameter PROGMEM_END   = 'h1FFFF;
