@@ -122,8 +122,8 @@ module Arbiter(
         for(i = 0; i < MASTERS_COUNT; i = i + 1) begin
             assign mAckO[i] = (state == STATE_CYCLE && currentMaster == i) ? sAckI : 1'b0;
             assign mDatO[i] = sDatI;
-            assign sDatO = mDatI[i];
-            assign sAdrO = mAdrI[i];
         end
     endgenerate
+    assign sDatO = mDatI[currentMaster];
+    assign sAdrO = mAdrI[currentMaster];
 endmodule
