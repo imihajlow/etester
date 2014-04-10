@@ -61,25 +61,28 @@ module Processor(
     /* statusReg end */
 
     /* State machine begin */
-    localparam STATE_HALT = 0;
-    localparam STATE_FETCH_CMD_R = 1;
-    localparam STATE_FETCH_CMD_A = 2;
-    localparam STATE_FETCH_ADDR_A = 4;
-    localparam STATE_FETCH_VAL_BOT_A = 6;
-    localparam STATE_FETCH_VAL_TOP_A = 8;
-    localparam STATE_FETCH_VAL_A = 9;
-    localparam STATE_FETCH_TIME_A = 10;
-    localparam STATE_WRITE_REG_A = 12;
-    localparam STATE_READ_REG_A = 14;
-    localparam STATE_WAIT = 15;
-    localparam STATE_FAIL = 16;
-    localparam STATE_SUCCESS = 17;
+    localparam STATE_HALT = 'h0;
+    localparam STATE_FETCH_CMD_R = 'h1;
+    localparam STATE_FETCH_CMD_A = 'h2;
+    localparam STATE_FETCH_ADDR_A = 'h3;
+    localparam STATE_FETCH_VAL_BOT_A = 'h4;
+    localparam STATE_FETCH_VAL_TOP_A = 'h5;
+    localparam STATE_FETCH_VAL_A = 'h6;
+    localparam STATE_FETCH_TIME_A = 'h7;
+    localparam STATE_WRITE_REG_A = 'h8;
+    localparam STATE_READ_REG_A = 'h9;
+    localparam STATE_WAIT = 'ha;
+    localparam STATE_FAIL = 'hb;
+    localparam STATE_SUCCESS = 'hc;
 
     reg [7:0] state = STATE_HALT;
     reg [7:0] nextState;
 
+    wire [15:0] realOpcode = (state == STATE_FETCH_CMD_A) ? tempOpcode : opcode;
     wire [15:0] tempOpcode = wbDatI;
     wire [15:0] tempReg = wbDatI;
+
+    wire [15:0] realRegValue = (state == STATE_FETCH_VAL_A) ? wbDatI : regValue;
 
     always @(posedge clk) begin
         if(rst || controlHalt) begin
@@ -182,6 +185,13 @@ module Processor(
                     end else
                         nextState = state;
                 end
+                STATE_WAIT: begin
+                    if(timeout)
+                        nextState = STATE_FETCH_CMD_R;
+                    else
+                        nextState = state;
+                end
+                default: nextState = state;
             endcase
         end
     end
@@ -204,75 +214,26 @@ module Processor(
             wbAdrO <= 0;
         end else begin
             // wbWeO begin
-            case(state)
-                STATE_FETCH_VAL_A: begin
-                    if(wbAckI) begin
-                        wbWeO <= 1'b1;
-                    end
-                end
+            case(nextState)
                 STATE_WRITE_REG_A: begin
-                    wbWeO <= ~wbAckI;
+                    wbWeO <= 1'b1;
                 end
                 default: wbWeO <= 1'b0;
             endcase
             // wbWeO end
 
             // wbCycO and wbStbO begin
-            case(state)
-                STATE_HALT,
-                STATE_WAIT,
-                STATE_FAIL,
-                STATE_SUCCESS: begin
-                    wbCycO <= 1'b0;
-                    wbStbO <= 1'b0;
-                end
-
-                STATE_FETCH_CMD_R,
+            case(nextState)
+                STATE_FETCH_CMD_A,
                 STATE_FETCH_ADDR_A,
                 STATE_FETCH_VAL_A,
+                STATE_FETCH_VAL_BOT_A,
                 STATE_FETCH_VAL_TOP_A,
+                STATE_FETCH_TIME_A,
                 STATE_WRITE_REG_A,
-                STATE_FETCH_VAL_BOT_A: begin
+                STATE_READ_REG_A: begin
                     wbCycO <= 1'b1;
                     wbStbO <= 1'b1;
-                end
-                STATE_FETCH_TIME_A: begin
-                    if(wbAckI) begin
-                        if(opcode == OPCODE_PAUSE) begin
-                            wbCycO <= 1'b0;
-                            wbStbO <= 1'b0;
-                        end else begin
-                            wbCycO <= 1'b1;
-                            wbStbO <= 1'b1;
-                        end
-                    end
-                end
-                STATE_FETCH_CMD_A: begin
-                    if(wbAckI) begin
-                        case(tempOpcode)
-                            OPCODE_WIN: begin
-                                wbCycO <= 1'b0;
-                                wbStbO <= 1'b0;
-                            end
-                            default: begin
-                                wbCycO <= 1'b1;
-                                wbStbO <= 1'b1;
-                            end
-                        endcase
-                    end
-                end
-                STATE_READ_REG_A: begin
-                    if(wbAckI) begin
-                        if(tempReg >= regBottom && tempReg <= regTop) begin
-                            wbCycO <= 1'b1;
-                            wbStbO <= 1'b1;
-                        end else begin
-                            if(timeout) begin
-                                wbCycO <= 1'b0;
-                                wbStbO <= 1'b0;
-                            end
-                        end
-                    end
                 end
                 default: begin
                     wbCycO <= 1'b0;
@@ -282,52 +243,34 @@ module Processor(
             // wbCycO and wbStbO end
 
             // wbAdrO and wbDatO begin
-            case(state)
-                STATE_FETCH_CMD_R: begin
+            case(nextState)
+                STATE_FETCH_CMD_A: begin
                     wbAdrO <= instructionPointer;
                 end
-                STATE_FETCH_CMD_A: begin
-                    if(wbAckI) begin
-                        wbAdrO <= instructionPointer + 1;
-                    end
-                end
                 STATE_FETCH_ADDR_A: begin
-                    if(wbAckI) begin
-                        wbAdrO <= currentInstructionPointer + 2;
-                    end
+                    wbAdrO <= instructionPointer + 1;
                 end
                 STATE_FETCH_VAL_A: begin
-                    if(wbAckI) begin
-                        wbAdrO <= regAddress;
-                        wbDatO <= wbDatI;
-                    end
+                    wbAdrO <= currentInstructionPointer + 2;
                 end
                 STATE_FETCH_VAL_BOT_A: begin
-                    if(wbAckI) begin
-                        wbAdrO <= currentInstructionPointer + 3;
-                    end
+                    wbAdrO <= currentInstructionPointer + 2;
                 end
                 STATE_FETCH_VAL_TOP_A: begin
-                    if(wbAckI) begin
-                        wbAdrO <= currentInstructionPointer + 4;
-                    end
+                    wbAdrO <= currentInstructionPointer + 3;
                 end
                 STATE_FETCH_TIME_A: begin
-                    if(wbAckI) begin
-                        if(opcode == OPCODE_WAIT)
-                            wbAdrO <= regAddress;
-                    end
+                    case(realOpcode)
+                        OPCODE_PAUSE: wbAdrO <= currentInstructionPointer + 1;
+                        OPCODE_WAIT: wbAdrO <= currentInstructionPointer + 4;
+                    endcase
                 end
                 STATE_WRITE_REG_A: begin
-                    if(wbAckI)
-                        wbAdrO <= instructionPointer;
+                    wbAdrO <= regAddress;
+                    wbDatO <= realRegValue;
                 end
                 STATE_READ_REG_A: begin
-                    if(wbAckI) begin
-                        if(tempReg >= regBottom && tempReg <= regTop) begin
-                            wbAdrO <= instructionPointer;
-                        end
-                    end
+                    wbAdrO <= regAddress;
                 end
             endcase
             // wbAdrO and wbDatO end
@@ -370,17 +313,19 @@ module Processor(
     end
     /* opcode end */
 
-    /* timeoutValue, regAddress, regBottom and regTop begin */
+    /* timeoutValue, regValue, regAddress, regBottom and regTop begin */
     reg [15:0] regBottom = 16'd0;
     reg [15:0] regTop = 16'd0;
     reg [15:0] regAddress = 16'd0;
     reg [15:0] timeoutValue = 16'd0;
+    reg [15:0] regValue = 16'd0;
     always @(posedge clk) begin
         if(rst || controlHalt) begin
             regBottom <= 16'd0;
             regTop <= 16'd0;
             regAddress <= 16'd0;
             timeoutValue <= 16'd0;
+            regValue <= 16'd0;
         end else begin
             if(state == STATE_FETCH_VAL_BOT_A && wbAckI)
                 regBottom <= wbDatI;
@@ -390,6 +335,8 @@ module Processor(
                 regAddress <= wbDatI;
             if(state == STATE_FETCH_TIME_A && wbAckI)
                 timeoutValue <= wbDatI;
+            if(state == STATE_FETCH_VAL_A && wbAckI)
+                regValue <= wbDatI;
         end
     end
     /* timeoutValue, regAddress, regBottom and regTop end */
