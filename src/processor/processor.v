@@ -116,7 +116,7 @@ module Processor(
                                 nextState = STATE_SUCCESS;
                             end
                             default: begin
-                                nextState = STATE_FETCH_CMD_A;
+                                nextState = STATE_FETCH_CMD_R;
                             end
                         endcase
                     end else
@@ -168,14 +168,14 @@ module Processor(
                 end
                 STATE_WRITE_REG_A: begin
                     if(wbAckI)
-                        nextState = STATE_FETCH_CMD_A;
+                        nextState = STATE_FETCH_CMD_R;
                     else
                         nextState = state;
                 end
                 STATE_READ_REG_A: begin
                     if(wbAckI) begin
                         if(tempReg >= regBottom && tempReg <= regTop) begin
-                            nextState = STATE_FETCH_CMD_A;
+                            nextState = STATE_FETCH_CMD_R;
                         end else begin
                             if(timeout) begin
                                 nextState = STATE_FAIL;
