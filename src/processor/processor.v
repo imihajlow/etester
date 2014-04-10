@@ -76,6 +76,7 @@ module Processor(
     localparam STATE_SUCCESS = 17;
 
     reg [7:0] state = STATE_HALT;
+    reg [7:0] nextState;
 
     wire [15:0] tempOpcode = wbDatI;
     wire [15:0] tempReg = wbDatI;
@@ -84,85 +85,102 @@ module Processor(
         if(rst || controlHalt) begin
             state <= STATE_HALT;
         end else begin
+            state <= nextState;
+        end
+    end
+    always @(*) begin
+        if(rst || controlHalt) begin
+            nextState = STATE_HALT;
+        end else begin
             case(state)
                 STATE_HALT: begin
-                    state <= STATE_FETCH_CMD_R;
+                    nextState = STATE_FETCH_CMD_R;
                 end
                 STATE_FETCH_CMD_R: begin
-                    state <= STATE_FETCH_CMD_A;
+                    nextState = STATE_FETCH_CMD_A;
                 end
                 STATE_FETCH_CMD_A: begin
                     if(wbAckI) begin
                         case(tempOpcode)
                             OPCODE_SET,
                             OPCODE_WAIT: begin
-                                state <= STATE_FETCH_ADDR_A;
+                                nextState = STATE_FETCH_ADDR_A;
                             end
                             OPCODE_PAUSE: begin
-                                state <= STATE_FETCH_TIME_A;
+                                nextState = STATE_FETCH_TIME_A;
                             end
                             OPCODE_WIN: begin
-                                state <= STATE_SUCCESS;
+                                nextState = STATE_SUCCESS;
                             end
                             default: begin
-                                state <= STATE_FETCH_CMD_A;
+                                nextState = STATE_FETCH_CMD_A;
                             end
                         endcase
-                    end
+                    end else
+                        nextState = state;
                 end
                 STATE_FETCH_ADDR_A: begin
                     if(wbAckI) begin
                         case(opcode)
-                            OPCODE_SET: state <= STATE_FETCH_VAL_A;
-                            OPCODE_WAIT: state <= STATE_FETCH_VAL_BOT_A;
+                            OPCODE_SET: nextState = STATE_FETCH_VAL_A;
+                            OPCODE_WAIT: nextState = STATE_FETCH_VAL_BOT_A;
                             default: begin
                                 $display("Automata error: bad opcode in STATE_FETCH_ADDR_A");
-                                state <= STATE_HALT;
+                                nextState = STATE_HALT;
                             end
                         endcase
-                    end
+                    end else
+                        nextState = state;
                 end
                 STATE_FETCH_VAL_A: begin
                     if(wbAckI) begin
-                        state <= STATE_WRITE_REG_A;
-                    end
+                        nextState = STATE_WRITE_REG_A;
+                    end else
+                        nextState = state;
                 end
                 STATE_FETCH_VAL_BOT_A: begin
                     if(wbAckI) begin
-                        state <= STATE_FETCH_VAL_TOP_A;
-                    end
+                        nextState = STATE_FETCH_VAL_TOP_A;
+                    end else
+                        nextState = state;
                 end
                 STATE_FETCH_VAL_TOP_A: begin
                     if(wbAckI) begin
-                        state <= STATE_FETCH_TIME_A;
-                    end
+                        nextState = STATE_FETCH_TIME_A;
+                    end else
+                        nextState = state;
                 end
                 STATE_FETCH_TIME_A: begin
                     if(wbAckI) begin
                         case(opcode)
-                            OPCODE_PAUSE: state <= STATE_WAIT;
-                            OPCODE_WAIT: state <= STATE_READ_REG_A;
+                            OPCODE_PAUSE: nextState = STATE_WAIT;
+                            OPCODE_WAIT: nextState = STATE_READ_REG_A;
                             default: begin
                                 $display("Automata error: bad opcode in STATE_FETCH_TIME_A");
-                                state <= STATE_HALT;
+                                nextState = STATE_HALT;
                             end
                         endcase
-                    end
+                    end else
+                        nextState = state;
                 end
                 STATE_WRITE_REG_A: begin
                     if(wbAckI)
-                        state <= STATE_FETCH_CMD_A;
+                        nextState = STATE_FETCH_CMD_A;
+                    else
+                        nextState = state;
                 end
                 STATE_READ_REG_A: begin
                     if(wbAckI) begin
                         if(tempReg >= regBottom && tempReg <= regTop) begin
-                            state <= STATE_FETCH_CMD_A;
+                            nextState = STATE_FETCH_CMD_A;
                         end else begin
                             if(timeout) begin
-                                state <= STATE_FAIL;
-                            end
+                                nextState = STATE_FAIL;
+                            end else
+                                nextState = state;
                         end
-                    end
+                    end else
+                        nextState = state;
                 end
             endcase
         end
