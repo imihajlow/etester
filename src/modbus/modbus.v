@@ -63,6 +63,8 @@ module ModbusToWishbone(
     localparam RSTATE_DATA_LO = 9;
     localparam RSTATE_DATA_HI = 10;
     localparam RSTATE_BYTE_COUNT = 11;
+    localparam RSTATE_ERROR = 12;
+    localparam RSTATE_SUCCESS = 13;
     reg [7:0] rstate = RSTATE_ADDRESS;
 
     reg isTempFunctionSupported;
@@ -202,6 +204,13 @@ module ModbusToWishbone(
     end
     /* processRequest end */
 
+    reg [7:0] nextRstate;
+    always @(posedge clk) begin
+        if(rst)
+            rstate <= RSTATE_WAIT;
+        else
+            rstate <= nextRstate;
+    end
     reg error = 1'b0;
     reg [7:0] exceptionCode = 8'h0;
     always @(posedge clk) begin
@@ -212,38 +221,18 @@ module ModbusToWishbone(
             transactionBufferWritePtr <= 7'd0;
         end else begin
             if(silence) begin
-                rstate <= RSTATE_ADDRESS;
             end else begin
                 uartReceiveReq <= uartDataReceived;
                 if(uartDataReceived) begin
                     if(parityError)
-                        rstate <= RSTATE_WAIT;
                     else begin
                         case(rstate)
                             RSTATE_ADDRESS: begin
-                                if(uartDataIn[7:0] == MODBUS_STATION_ADDRESS) begin
-                                    rstate <= RSTATE_FUNCTION;
-                                end else begin
-                                    rstate <= RSTATE_WAIT;
-                                    $display("Modbus receive: unknown address %h", uartDataIn[7:0]);
-                                end
                             end
                             RSTATE_FUNCTION: begin
                                 modbusFunction <= uartDataIn[7:0];
                                 if(isTempFunctionSupported) begin
-                                    case(tempFunction)
-                                        FUN_READ_HOLDING_REGISTERS,
-                                        FUN_READ_INPUT_REGISTERS,
-                                        FUN_WRITE_MULTIPLE_REGISTERS: begin
-                                            rstate <= RSTATE_ADDRESS_HI;
-                                        end
-                                        default: begin
-                                            $display("Function %h is not implemented", uartDataIn[7:0]);
-                                            rstate <= RSTATE_WAIT;
-                                        end
-                                    endcase
                                 end else begin
-                                    rstate <= RSTATE_WAIT;
                                     error <= 1'b1;
                                     exceptionCode <= 8'h1;
                                     $display("Unknown function %h", uartDataIn[7:0]);
@@ -251,17 +240,13 @@ module ModbusToWishbone(
                             end
                             RSTATE_CRC_LO: begin
                                 expectedCrcLo <= uartDataIn[7:0];
-                                rstate <= RSTATE_CRC_HI;
                             end
                             RSTATE_CRC_HI: begin
-                                rstate <= RSTATE_ADDRESS;
                             end
                             RSTATE_ADDRESS_LO: begin
-                                rstate <= RSTATE_QUANTITY_HI;
                                 startAddressLo <= uartDataIn[7:0];
                             end
                             RSTATE_ADDRESS_HI: begin
-                                rstate <= RSTATE_ADDRESS_LO;
                                 startAddressHi <= uartDataIn[7:0];
                             end
                             RSTATE_QUANTITY_LO: begin
@@ -270,9 +255,7 @@ module ModbusToWishbone(
                                     FUN_READ_HOLDING_REGISTERS,
                                     FUN_READ_INPUT_REGISTERS: begin
                                         if(isAddressValid && isTempQuantityValid) begin
-                                            rstate <= RSTATE_CRC_LO;
                                         end else begin
-                                            rstate <= RSTATE_WAIT;
                                             error <= 1'b1;
                                             if(~isTempQuantityValid) begin
                                                 exceptionCode <= 8'h03;
@@ -284,26 +267,21 @@ module ModbusToWishbone(
                                         end
                                     end
                                     FUN_WRITE_MULTIPLE_REGISTERS: begin
-                                        rstate <= RSTATE_BYTE_COUNT;
                                         transactionBufferWritePtr <= 7'd0;
                                     end
                                     default: begin
-                                        rstate <= RSTATE_WAIT;
                                         $display("Unexpected unknown function %h", modbusFunction);
                                     end
                                 endcase
                             end
                             RSTATE_QUANTITY_HI: begin
-                                rstate <= RSTATE_QUANTITY_LO;
                                 quantityHi <= uartDataIn[7:0];
                             end
                             RSTATE_BYTE_COUNT: begin
                                 case(modbusFunction)
                                     FUN_WRITE_MULTIPLE_REGISTERS: begin
                                         if(isAddressValid && isQuantityValid && isTempByteCountValid) begin
-                                            rstate <= RSTATE_DATA_HI;
                                         end else begin
-                                            rstate <= RSTATE_WAIT;
                                             error <= 1'b1;
                                             if(~isQuantityValid || ~isTempByteCountValid) begin
                                                 exceptionCode <= 8'h03;
@@ -315,27 +293,122 @@ module ModbusToWishbone(
                                         end
                                     end
                                     default: begin
-                                        rstate <= RSTATE_WAIT;
                                         $display("Unexpected unknown function %h", modbusFunction);
                                     end
                                 endcase
                             end
                             RSTATE_DATA_HI: begin
-                                rstate <= RSTATE_DATA_LO;
                                 currentDataHi <= uartDataIn[7:0];
                             end
                             RSTATE_DATA_LO: begin
                                 transactionBuffer[transactionBufferWritePtr] <= currentData;
                                 transactionBufferWritePtr <= transactionBufferWritePtr + 7'd1;
-                                if(transactionBufferWritePtr == quantity[6:0] - 7'd1)
-                                    rstate <= RSTATE_CRC_LO;
-                                else
-                                    rstate <= RSTATE_DATA_HI;
                             end
                             RSTATE_WAIT: ;
                             default: begin
                                 $display("Unknown state %d", rstate);
-                                rstate <= RSTATE_WAIT;
+                            end
+                        endcase
+                    end // parityError
+                end // uartDataReceived
+            end // silence
+        end
+    end
+    always @(*) begin
+        nextRstate = rstate;
+        if(rst) begin
+            nextRstate = RSTATE_WAIT;
+        end else begin
+            if(silence) begin
+                nextRstate = RSTATE_ADDRESS;
+            end else begin
+                if(uartDataReceived) begin
+                    if(parityError)
+                        nextRstate = RSTATE_WAIT;
+                    else begin
+                        case(rstate)
+                            RSTATE_ADDRESS: begin
+                                if(uartDataIn[7:0] == MODBUS_STATION_ADDRESS) begin
+                                    nextRstate = RSTATE_FUNCTION;
+                                end else begin
+                                    nextRstate = RSTATE_WAIT;
+                                    $display("Modbus receive: unknown address %h", uartDataIn[7:0]);
+                                end
+                            end
+                            RSTATE_FUNCTION: begin
+                                if(isTempFunctionSupported) begin
+                                    case(tempFunction)
+                                        FUN_READ_HOLDING_REGISTERS,
+                                        FUN_READ_INPUT_REGISTERS,
+                                        FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                            nextRstate = RSTATE_ADDRESS_HI;
+                                        end
+                                        default: begin
+                                            nextRstate = RSTATE_WAIT;
+                                        end
+                                    endcase
+                                end else begin
+                                    nextRstate = RSTATE_ERROR;
+                                end
+                            end
+                            RSTATE_CRC_LO: begin
+                                nextRstate = RSTATE_CRC_HI;
+                            end
+                            RSTATE_CRC_HI: begin
+                                nextRstate = RSTATE_ADDRESS;
+                            end
+                            RSTATE_ADDRESS_LO: begin
+                                nextRstate = RSTATE_QUANTITY_HI;
+                            end
+                            RSTATE_ADDRESS_HI: begin
+                                nextRstate = RSTATE_ADDRESS_LO;
+                            end
+                            RSTATE_QUANTITY_LO: begin
+                                case(modbusFunction)
+                                    FUN_READ_HOLDING_REGISTERS,
+                                    FUN_READ_INPUT_REGISTERS: begin
+                                        if(isAddressValid && isTempQuantityValid) begin
+                                            nextRstate = RSTATE_CRC_LO;
+                                        end else begin
+                                            nextRstate = RSTATE_ERROR;
+                                        end
+                                    end
+                                    FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                        nextRstate = RSTATE_BYTE_COUNT;
+                                    end
+                                    default: begin
+                                        nextRstate = RSTATE_WAIT;
+                                    end
+                                endcase
+                            end
+                            RSTATE_QUANTITY_HI: begin
+                                nextRstate = RSTATE_QUANTITY_LO;
+                            end
+                            RSTATE_BYTE_COUNT: begin
+                                case(modbusFunction)
+                                    FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                        if(isAddressValid && isQuantityValid && isTempByteCountValid) begin
+                                            nextRstate = RSTATE_DATA_HI;
+                                        end else begin
+                                            nextRstate = RSTATE_ERROR;
+                                        end
+                                    end
+                                    default: begin
+                                        nextRstate = RSTATE_WAIT;
+                                    end
+                                endcase
+                            end
+                            RSTATE_DATA_HI: begin
+                                nextRstate = RSTATE_DATA_LO;
+                            end
+                            RSTATE_DATA_LO: begin
+                                if(transactionBufferWritePtr == quantity[6:0] - 7'd1)
+                                    nextRstate = RSTATE_CRC_LO;
+                                else
+                                    nextRstate = RSTATE_DATA_HI;
+                            end
+                            default: begin
+                                nextRstate = RSTATE_WAIT;
                             end
                         endcase
                     end // parityError
