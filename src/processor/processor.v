@@ -74,6 +74,7 @@ module Processor(
     localparam STATE_WAIT = 'ha;
     localparam STATE_FAIL = 'hb;
     localparam STATE_SUCCESS = 'hc;
+    localparam STATE_READ_REG_R = 'hd;
 
     reg [7:0] state = STATE_HALT;
     reg [7:0] nextState;
@@ -157,7 +158,7 @@ module Processor(
                     if(wbAckI) begin
                         case(opcode)
                             OPCODE_PAUSE: nextState = STATE_WAIT;
-                            OPCODE_WAIT: nextState = STATE_READ_REG_A;
+                            OPCODE_WAIT: nextState = STATE_READ_REG_R;
                             default: begin
                                 $display("Automata error: bad opcode in STATE_FETCH_TIME_A");
                                 nextState = STATE_HALT;
@@ -172,6 +173,9 @@ module Processor(
                     else
                         nextState = state;
                 end
+                STATE_READ_REG_R: begin
+                    nextState = STATE_READ_REG_A;
+                end
                 STATE_READ_REG_A: begin
                     if(wbAckI) begin
                         if(tempReg >= regBottom && tempReg <= regTop) begin
@@ -180,7 +184,7 @@ module Processor(
                             if(timeout) begin
                                 nextState = STATE_FAIL;
                             end else
-                                nextState = state;
+                                nextState = STATE_READ_REG_R;
                         end
                     end else
                         nextState = state;
@@ -351,6 +355,7 @@ module Processor(
         end else begin
             case(state)
                 STATE_READ_REG_A,
+                STATE_READ_REG_R,
                 STATE_WAIT: begin
                     if(slowClockCounter == TIMEOUT_CLOCK_DIVISOR) begin
                         slowClockCounter <= 16'd0;
