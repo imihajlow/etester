@@ -11,14 +11,20 @@ module ModbusTestbench();
 	wire silence, receiveReq;
 	wire fifoClk, full, writeReq;
 	wire [7:0] dataOut;
-    wire [23:0] wbAdrO;
+    wire [15:0] wbAdrO;
     wire [15:0] wbDatO;
     wire [15:0] wbDatI;
     wire wbCycO;
     wire wbStbO;
     wire wbAckI;
     wire wbWeO;
-	ModbusToWishbone _m(
+	ModbusToWishbone #(
+	    .ADDRESS_WIDTH(16),
+	    .OFFSET_INPUT_REGISTERS(0),
+	    .OFFSET_HOLDING_REGISTERS(0),
+	    .QUANTITY_INPUT_REGISTERS('hffff),
+	    .QUANTITY_HOLDING_REGISTERS('hffff)
+	) _m(
 		.clk(clk),
 		.rst(rst),
         .wbAdrO(wbAdrO),
@@ -95,8 +101,8 @@ module FakeUartRx(
 	output [8:0] dataOut,
 	output silence
 );
-	reg [8:0] data [15:0];
-	reg [3:0] dataIndex = 4'h0;
+	reg [8:0] data [31:0];
+	reg [4:0] dataIndex = 5'h0;
 	reg dataReceived = 1'b0;
 	initial begin
 		/*data[0] = 9'h37; // address
@@ -110,7 +116,7 @@ module FakeUartRx(
 		data[8] = 9'h100; */
 		data[0] = 9'h37; // address
 		data[1] = 9'h10; // function
-		data[2] = 9'h00; // starting address hi
+		data[2] = 9'h01; // starting address hi
 		data[3] = 9'h05; // starting address lo
 		data[4] = 9'h00; // quantity hi
 		data[5] = 9'h02; // quantity lo
@@ -119,15 +125,24 @@ module FakeUartRx(
 		data[8] = 9'h33; // data[0] lo
 		data[9] = 9'h00; // data[0] hi
 		data[10] = 9'hFF; // data[0] lo
-		data[11] = 9'h40; // crc lo
-		data[12] = 9'h9B; // crc hi
-		data[13] = 9'h100; 
+		data[11] = 9'h4d; // crc lo
+		data[12] = 9'h0b; // crc hi
+		// Read
+		data[13] = 9'h37; // address
+		data[14] = 9'h03; // function
+		data[15] = 9'h01; // starting address hi
+		data[16] = 9'h03; // starting address lo
+		data[17] = 9'h00; // quantity hi
+		data[18] = 9'h08; // quantity lo
+		data[19] = 9'hb0; // crc lo
+		data[20] = 9'h66; // crc hi
+		data[21] = 9'h100; 
 	end
 	assign dataOut = {1'b0, data[dataIndex][7:0]};
 	reg silence = 1'b0;
 	initial begin
 		dataIndex = 0;
-		for(dataIndex = 0; dataIndex < 15; dataIndex = dataIndex + 1) begin
+		for(dataIndex = 0; dataIndex <= 31; dataIndex = dataIndex + 1) begin
 			if(data[dataIndex][8]) begin
 				dataReceived = 1'b0;
 				silence = 1'b1;
@@ -154,9 +169,9 @@ module FakeWishboneSlave(
     output ack_o,
     input [15:0] dat_i,
     output [15:0] dat_o,
-    input [23:0] adr_i
+    input [15:0] adr_i
 );
-    parameter DATA_OFFSET = 24'hA00000;
+    parameter DATA_OFFSET = 16'h0;
     reg ack_o = 1'b0;
     reg [15:0] dat_o = 16'd0;
 

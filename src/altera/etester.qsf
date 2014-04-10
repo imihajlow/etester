@@ -70,6 +70,9 @@ set_location_assignment PIN_T16 -to gpio[4]
 set_location_assignment PIN_C2 -to gpio[5]
 set_location_assignment PIN_C1 -to gpio[6]
 set_location_assignment PIN_H2 -to gpio[7]
+set_global_assignment -name VERILOG_FILE ../processor/processor.v
+set_global_assignment -name VERILOG_FILE ../arbiter/arbiter.v
+set_global_assignment -name VERILOG_FILE ../io/port.v
 set_global_assignment -name VERILOG_FILE ../modbus/crc16.v
 set_global_assignment -name VERILOG_FILE ../modbus/modbus.v
 set_global_assignment -name VERILOG_FILE ../uart/fifo.v
@@ -77,5 +80,5 @@ set_global_assignment -name VERILOG_FILE etester.v
 set_global_assignment -name VERILOG_FILE ../uart/uart_tx.v
 set_global_assignment -name VERILOG_FILE ../uart/uart_rx.v
 set_global_assignment -name QIP_FILE pll.qip
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
 set_global_assignment -name SDC_FILE etester.sdc
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

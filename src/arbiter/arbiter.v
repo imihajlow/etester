@@ -29,7 +29,7 @@ module Arbiter(
 
     genvar i;
     generate
-        for(i = 0; i < MASTERS_COUNT; i = i + 1) begin
+        for(i = 0; i < MASTERS_COUNT; i = i + 1) begin : genblock
             assign mAdrI[i] = mAdrIPacked[ADDRESS_WIDTH*(i+1)-1:ADDRESS_WIDTH*i];
             assign mDatI[i] = mDatIPacked[DATA_WIDTH*(i+1)-1:DATA_WIDTH*i];
             assign mDatOPacked[DATA_WIDTH*(i+1)-1:DATA_WIDTH*i] = mDatO[i];
@@ -119,7 +119,7 @@ module Arbiter(
     end
     
     generate
-        for(i = 0; i < MASTERS_COUNT; i = i + 1) begin
+        for(i = 0; i < MASTERS_COUNT; i = i + 1) begin : genblock1
             assign mAckO[i] = (state == STATE_CYCLE && currentMaster == i) ? sAckI : 1'b0;
             assign mDatO[i] = sDatI;
         end

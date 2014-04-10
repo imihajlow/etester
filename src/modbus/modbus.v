@@ -33,9 +33,9 @@ module ModbusToWishbone(
 
     parameter MODBUS_STATION_ADDRESS = 8'h37;
     parameter OFFSET_INPUT_REGISTERS = 'hA00000;
-    parameter QUANTITY_INPUT_REGISTERS = 32;
+    parameter QUANTITY_INPUT_REGISTERS = 'hffff;
     parameter OFFSET_HOLDING_REGISTERS = 'hA00000;
-    parameter QUANTITY_HOLDING_REGISTERS = 32;
+    parameter QUANTITY_HOLDING_REGISTERS = 'hffff;
     parameter OFFSET_FILES = 'hB00000;
 
     localparam FUN_READ_COILS = 8'h01;
