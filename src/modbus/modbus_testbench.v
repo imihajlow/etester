@@ -136,7 +136,16 @@ module FakeUartRx(
 		data[18] = 9'h08; // quantity lo
 		data[19] = 9'hb0; // crc lo
 		data[20] = 9'h66; // crc hi
-		data[21] = 9'h100; 
+		// Error
+		data[21] = 9'h37; // address
+		data[22] = 9'h03; // function
+		data[23] = 9'h01; // starting address hi
+		data[24] = 9'h03; // starting address lo
+		data[25] = 9'h08; // quantity hi
+		data[26] = 9'h08; // quantity lo
+		data[27] = 9'hb7; // crc lo
+		data[28] = 9'ha6; // crc hi
+		data[29] = 9'h100; 
 	end
 	assign dataOut = {1'b0, data[dataIndex][7:0]};
 	reg silence = 1'b0;
