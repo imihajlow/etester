@@ -271,8 +271,6 @@ module ModbusToWishbone(
         end else begin
             error <= asyncError;
             exceptionCode <= asyncExceptionCode;
-            if(error)
-                $display("Error! exceptionCode = %h", asyncExceptionCode);
         end
     end
     /* error end */
@@ -283,8 +281,8 @@ module ModbusToWishbone(
     reg [7:0] asyncExceptionCode;
     always @(*) begin
         nextRstate = rstate;
-        asyncError = 1'b0;
-        asyncExceptionCode = 8'h0;
+        asyncError = error;
+        asyncExceptionCode = exceptionCode;
         if(rst) begin
             //currentDataHi <= 8'd0;
             //transactionBufferWritePtr <= 7'd0;
