@@ -4,7 +4,7 @@ module ModbusToWishbone(
     input clk,
     input rst,
     // Wishbone
-    output reg [ADDRESS_WIDTH-1:0] wbAdrO,
+    output [ADDRESS_WIDTH-1:0] wbAdrO,
     output reg [DATA_WIDTH-1:0] wbDatO,
     input [DATA_WIDTH-1:0] wbDatI,
     output reg wbCycO,
@@ -284,8 +284,6 @@ module ModbusToWishbone(
         asyncError = error;
         asyncExceptionCode = exceptionCode;
         if(rst) begin
-            //currentDataHi <= 8'd0;
-            //transactionBufferWritePtr <= 7'd0;
             nextRstate = RSTATE_ADDRESS;
         end else begin
             if(silence) begin
@@ -455,11 +453,11 @@ module ModbusToWishbone(
             FUN_READ_HOLDING_REGISTERS,
             FUN_WRITE_MULTIPLE_REGISTERS: begin
                 wbStartAddress = OFFSET_HOLDING_REGISTERS + startAddress;
-                wbEndAddress = OFFSET_HOLDING_REGISTERS + startAddress + quantity;
+                wbEndAddress = OFFSET_HOLDING_REGISTERS + startAddress + quantity - 1;
             end
             FUN_READ_INPUT_REGISTERS: begin
                 wbStartAddress = OFFSET_INPUT_REGISTERS + startAddress;
-                wbEndAddress = OFFSET_INPUT_REGISTERS + startAddress + quantity;
+                wbEndAddress = OFFSET_INPUT_REGISTERS + startAddress + quantity - 1;
             end
             default: begin
                 wbEndAddress = 0;
@@ -477,93 +475,87 @@ module ModbusToWishbone(
     /* Transaction buffer end*/
 
     /* Send begin */
-    localparam SSTATE_WAIT = 0;
-    localparam SSTATE_STATION_ADDRESS = 1;
-    localparam SSTATE_FUNCTION = 2;
-    localparam SSTATE_ERROR_CODE = 3;
-    localparam SSTATE_CRC_LO = 4;
-    localparam SSTATE_CRC_HI = 5;
-    localparam SSTATE_BEGIN = 6;
-    localparam SSTATE_END = 7;
-    localparam SSTATE_BYTE_COUNT = 8;
-    localparam SSTATE_DATA_LO = 10;
-    localparam SSTATE_WB_READ = 11;
-    localparam SSTATE_WB_WAIT_DATA_HI = 12;
-    localparam SSTATE_WB_WRITE = 13;
-    localparam SSTATE_WB_WRITE_ACK = 14;
-    localparam SSTATE_ADDRESS_HI = 15;
-    localparam SSTATE_ADDRESS_LO = 16;
-    localparam SSTATE_QUANTITY_HI = 17;
-    localparam SSTATE_QUANTITY_LO = 18;
+    localparam SSTATE_WAIT = 'h0;
+    localparam SSTATE_STATION_ADDRESS = 'h1;
+    localparam SSTATE_FUNCTION = 'h2;
+    localparam SSTATE_ERROR_CODE = 'h3;
+    localparam SSTATE_CRC_LO = 'h4;
+    localparam SSTATE_CRC_HI = 'h5;
+    localparam SSTATE_BEGIN = 'h6;
+    localparam SSTATE_END = 'h7;
+    localparam SSTATE_BYTE_COUNT = 'h8;
+    localparam SSTATE_DATA_LO = 'ha;
+    localparam SSTATE_WB_READ = 'hb;
+    localparam SSTATE_WB_WAIT_DATA_HI = 'hc;
+    localparam SSTATE_WB_WRITE = 'hd;
+    localparam SSTATE_WB_WRITE_ACK = 'he;
+    localparam SSTATE_ADDRESS_HI = 'hf;
+    localparam SSTATE_ADDRESS_LO = 'h10;
+    localparam SSTATE_QUANTITY_HI = 'h11;
+    localparam SSTATE_QUANTITY_LO = 'h12;
 
+    /* sstate begin */
     reg [7:0] sstate = SSTATE_WAIT;
+    always @(posedge clk) begin
+        sstate <= nextSstate;
+    end
+    /* sstate end */
+
     initial fifoDataOut = 8'h0;
 
-    always @(posedge clk) begin
+    /* nextSstate begin */
+    reg [7:0] nextSstate;
+    always @(*) begin
+        nextSstate = sstate;
         if(rst) begin
-            sstate <= SSTATE_WAIT;
-            fifoDataOut <= 8'h0;
+            nextSstate = SSTATE_WAIT;
         end else begin
             case(sstate)
                 SSTATE_WAIT: begin
-                    if(fifoWriteAck) begin
-                        $display("fifoWriteAck during SSTATE_WAIT");
-                    end
                     if(processRequest) begin
                         case(modbusFunction)
                             FUN_READ_HOLDING_REGISTERS,
                             FUN_READ_INPUT_REGISTERS:
-                                sstate <= SSTATE_BEGIN;
+                                nextSstate = SSTATE_BEGIN;
                             FUN_WRITE_MULTIPLE_REGISTERS: begin
-                                sstate <= SSTATE_WB_WRITE;
-                                wbCurrentAddress <= wbStartAddress;
-                            end
-                            default: begin
-                                $display("Unexpected unknown function %h", modbusFunction);
+                                nextSstate = SSTATE_WB_WRITE;
                             end
                         endcase
                     end
                 end
                 SSTATE_BEGIN: begin
-                    fifoDataOut <= MODBUS_STATION_ADDRESS;
-                    sstate <= SSTATE_FUNCTION;
+                    nextSstate = SSTATE_FUNCTION;
                 end
                 SSTATE_CRC_LO: begin
                     if(fifoWriteAck) begin
-                        fifoDataOut <= ocrcOut[7:0];
-                        sstate <= SSTATE_CRC_HI;
+                        nextSstate = SSTATE_CRC_HI;
                     end
                 end
                 SSTATE_CRC_HI: begin
                     if(fifoWriteAck) begin
-                        fifoDataOut <= ocrcOut[15:8];
-                        sstate <= SSTATE_END;
+                        nextSstate = SSTATE_END;
                     end
                 end
                 SSTATE_STATION_ADDRESS: begin
                     if(fifoWriteAck) begin
-                        fifoDataOut <= MODBUS_STATION_ADDRESS;
-                        sstate <= SSTATE_FUNCTION;
+                        nextSstate = SSTATE_FUNCTION;
                     end
                 end
                 SSTATE_FUNCTION: begin
                     if(fifoWriteAck) begin
                         if(error) begin
-                            fifoDataOut <= { 1'b1, modbusFunction[6:0] };
-                            sstate <= SSTATE_ERROR_CODE;
+                            nextSstate = SSTATE_ERROR_CODE;
                         end else begin
-                            fifoDataOut <= modbusFunction;
                             case(modbusFunction)
                                 FUN_READ_HOLDING_REGISTERS,
                                 FUN_READ_INPUT_REGISTERS: begin
-                                    sstate <= SSTATE_BYTE_COUNT;
+                                    nextSstate = SSTATE_BYTE_COUNT;
                                 end
                                 FUN_WRITE_MULTIPLE_REGISTERS: begin
-                                    sstate <= SSTATE_ADDRESS_HI;
+                                    nextSstate = SSTATE_ADDRESS_HI;
                                 end
                                 default: begin
-                                    $display("Function %h is not implemented", modbusFunction);
-                                    sstate <= SSTATE_WAIT;
+                                    nextSstate = SSTATE_WAIT;
                                 end
                             endcase
                         end
@@ -571,77 +563,165 @@ module ModbusToWishbone(
                 end
                 SSTATE_ERROR_CODE: begin
                     if(fifoWriteAck) begin
-                        fifoDataOut <= exceptionCode;
-                        sstate <= SSTATE_CRC_LO;
+                        nextSstate = SSTATE_CRC_LO;
                     end
                 end
                 SSTATE_END: begin
                     if(fifoWriteAck) begin
-                        sstate <= SSTATE_WAIT;
+                        nextSstate = SSTATE_WAIT;
+                    end
+                end
+                SSTATE_BYTE_COUNT: begin
+                    if(fifoWriteAck) begin
+                        nextSstate = SSTATE_WB_READ;
+                    end
+                end
+                SSTATE_WB_READ: begin
+                    if(fifoWriteAck) begin
+                        nextSstate = SSTATE_WB_WAIT_DATA_HI;
+                    end
+                end
+                SSTATE_WB_WAIT_DATA_HI: begin
+                    if(wbAckI) begin
+                        nextSstate = SSTATE_DATA_LO;
+                    end
+                end
+                SSTATE_DATA_LO: begin
+                    if(fifoWriteAck) begin
+                        if(wbCurrentAddress == wbEndAddress)
+                            nextSstate = SSTATE_CRC_LO;
+                        else
+                            nextSstate = SSTATE_WB_READ;
+                    end
+                end
+                SSTATE_WB_WRITE: begin
+                    nextSstate = SSTATE_WB_WRITE_ACK;
+                end
+                SSTATE_WB_WRITE_ACK: begin
+                    if(wbAckI) begin
+                        if(wbCurrentAddress == wbEndAddress) begin
+                            nextSstate = SSTATE_BEGIN;
+                        end
+                    end
+                end
+                SSTATE_ADDRESS_HI: begin
+                    if(fifoWriteAck)
+                        nextSstate = SSTATE_ADDRESS_LO;
+                end
+                SSTATE_ADDRESS_LO: begin
+                    if(fifoWriteAck)
+                        nextSstate = SSTATE_QUANTITY_HI;
+                end
+                SSTATE_QUANTITY_HI: begin
+                    if(fifoWriteAck)
+                        nextSstate = SSTATE_QUANTITY_LO;
+                end
+                SSTATE_QUANTITY_LO: begin
+                    if(fifoWriteAck)
+                        nextSstate = SSTATE_CRC_LO;
+                end
+                default: nextSstate = SSTATE_WAIT;
+            endcase
+        end // rst
+    end
+    /* nextSstate begin */
+
+    /* wbCurrentAddress, wbCurrentData begin */
+    always @(posedge clk) begin
+        if(rst) begin
+        end else begin
+            case(nextSstate)
+                SSTATE_WB_WRITE,
+                SSTATE_WB_READ: begin
+                    wbCurrentAddress <= wbStartAddress;
+                end
+                SSTATE_WB_WAIT_DATA_HI: begin
+                    wbCurrentAddress <= wbCurrentAddress + 1;
+                end
+                SSTATE_DATA_LO: begin
+                    wbCurrentData <= wbDatI;
+                end
+                SSTATE_WB_WRITE_ACK: begin
+                    if(wbAckI)
+                        wbCurrentAddress <= wbCurrentAddress + 1;
+                end
+            endcase
+        end // rst
+    end
+    /* wbCurrentAddress, wbCurrentData end */
+    always @(posedge clk) begin
+        if(rst) begin
+            fifoDataOut <= 8'h0;
+        end else begin
+            case(sstate)
+                SSTATE_WAIT: begin
+                    if(fifoWriteAck) begin
+                        $display("fifoWriteAck during SSTATE_WAIT");
+                    end
+                end
+                SSTATE_BEGIN: begin
+                    fifoDataOut <= MODBUS_STATION_ADDRESS;
+                end
+                SSTATE_CRC_LO: begin
+                    if(fifoWriteAck) begin
+                        fifoDataOut <= ocrcOut[7:0];
+                    end
+                end
+                SSTATE_CRC_HI: begin
+                    if(fifoWriteAck) begin
+                        fifoDataOut <= ocrcOut[15:8];
+                    end
+                end
+                SSTATE_STATION_ADDRESS: begin
+                    if(fifoWriteAck) begin
+                        fifoDataOut <= MODBUS_STATION_ADDRESS;
+                    end
+                end
+                SSTATE_FUNCTION: begin
+                    if(fifoWriteAck) begin
+                        if(error) begin
+                            fifoDataOut <= { 1'b1, modbusFunction[6:0] };
+                        end else begin
+                            fifoDataOut <= modbusFunction;
+                        end
+                    end
+                end
+                SSTATE_ERROR_CODE: begin
+                    if(fifoWriteAck) begin
+                        fifoDataOut <= exceptionCode;
                     end
                 end
                 SSTATE_BYTE_COUNT: begin
                     if(fifoWriteAck) begin
                         fifoDataOut <= byteCount;
-                        sstate <= SSTATE_WB_READ;
-                        wbCurrentAddress <= wbStartAddress;
                         if(byteCount == 8'd0) begin
                             $display("Error: zero byte count");
                         end
                     end
                 end
-                SSTATE_WB_READ: begin
-                    if(fifoWriteAck) begin
-                        sstate <= SSTATE_WB_WAIT_DATA_HI;
-                        wbCurrentAddress <= wbCurrentAddress + 1;
-                    end
-                end
                 SSTATE_WB_WAIT_DATA_HI: begin
                     if(wbAckI) begin
-                        wbCurrentData <= wbDatI;
                         fifoDataOut <= wbDatI[15:8];
-                        sstate <= SSTATE_DATA_LO;
                     end
                 end
                 SSTATE_DATA_LO: begin
                     if(fifoWriteAck) begin
                         fifoDataOut <= wbCurrentData[7:0];
-                        if(wbCurrentAddress == wbEndAddress)
-                            sstate <= SSTATE_CRC_LO;
-                        else
-                            sstate <= SSTATE_WB_READ;
-                    end
-                end
-                SSTATE_WB_WRITE: begin
-                    sstate <= SSTATE_WB_WRITE_ACK;
-                    wbCurrentAddress <= wbCurrentAddress + 1;
-                end
-                SSTATE_WB_WRITE_ACK: begin
-                    if(wbAckI) begin
-                        if(wbCurrentAddress == wbEndAddress) begin
-                            sstate <= SSTATE_BEGIN;
-                        end else begin
-                            wbCurrentAddress <= wbCurrentAddress + 1;
-                        end
                     end
                 end
                 SSTATE_ADDRESS_HI: begin
                     fifoDataOut <= startAddressHi;
-                    sstate <= SSTATE_ADDRESS_LO;
                 end
                 SSTATE_ADDRESS_LO: begin
                     fifoDataOut <= startAddressLo;
-                    sstate <= SSTATE_QUANTITY_HI;
                 end
                 SSTATE_QUANTITY_HI: begin
                     fifoDataOut <= quantityHi;
-                    sstate <= SSTATE_QUANTITY_LO;
                 end
                 SSTATE_QUANTITY_LO: begin
                     fifoDataOut <= quantityLo;
-                    sstate <= SSTATE_CRC_LO;
                 end
-                default: sstate <= SSTATE_WAIT;
+                default: ;
             endcase
         end // rst
     end
@@ -705,7 +785,7 @@ module ModbusToWishbone(
 
     /* wishbone begin */
     initial wbDatO = 0;
-    initial wbAdrO = 0;
+    assign wbAdrO = wbCurrentAddress;
     initial wbCycO = 1'b0;
     initial wbStbO = 1'b0;
     initial wbWeO = 1'b0;
@@ -715,56 +795,34 @@ module ModbusToWishbone(
             wbStbO <= 1'b0;
             wbWeO <= 1'b0;
             wbDatO <= 0;
-            wbAdrO <= 0;
             transactionBufferReadPtr <= 7'd0;
         end else begin
-            case(sstate)
-                SSTATE_WAIT: begin
-                    if(processRequest) begin
-                        case(modbusFunction)
-                            FUN_WRITE_MULTIPLE_REGISTERS: begin
-                                transactionBufferReadPtr <= 7'd0;
-                            end
-                        endcase
-                    end
-                end
-                SSTATE_WB_READ: begin
-                    if(fifoWriteAck) begin
-                        wbCycO <= 1'b1;
-                        wbStbO <= 1'b1;
-                        wbWeO <= 1'b0;
-                        wbAdrO <= wbCurrentAddress;
-                    end
-                end
-                SSTATE_WB_WAIT_DATA_HI: begin
-                    if(wbAckI) begin
-                        wbCycO <= 1'b0;
-                        wbStbO <= 1'b0;
-                        wbWeO <= 1'b0;
-                    end
-                end
+            case(nextSstate)
                 SSTATE_WB_WRITE: begin
+                    transactionBufferReadPtr <= 7'd0;
                     wbCycO <= 1'b1;
                     wbStbO <= 1'b1;
-                    wbAdrO <= wbCurrentAddress;
                     wbWeO <= 1'b1;
                     wbDatO <= transactionBuffer[transactionBufferReadPtr];
                     transactionBufferReadPtr <= transactionBufferReadPtr + 7'd1;
                 end
+                SSTATE_WB_WAIT_DATA_HI: begin
+                    wbCycO <= 1'b1;
+                    wbStbO <= 1'b1;
+                    wbWeO <= 1'b0;
+                end
+                SSTATE_DATA_LO: begin
+                    wbCycO <= 1'b0;
+                    wbStbO <= 1'b0;
+                    wbWeO <= 1'b0;
+                end
                 SSTATE_WB_WRITE_ACK: begin
                     if(wbAckI) begin
-                        if(wbCurrentAddress == wbEndAddress) begin
-                            wbCycO <= 1'b0;
-                            wbWeO <= 1'b0;
-                            wbStbO <= 1'b0;
-                        end else begin
-                            wbCycO <= 1'b1;
-                            wbStbO <= 1'b1;
-                            wbAdrO <= wbCurrentAddress;
-                            wbWeO <= 1'b1;
-                            wbDatO <= transactionBuffer[transactionBufferReadPtr];
-                            transactionBufferReadPtr <= transactionBufferReadPtr + 7'd1;
-                        end
+                        wbCycO <= 1'b1;
+                        wbStbO <= 1'b1;
+                        wbWeO <= 1'b1;
+                        wbDatO <= transactionBuffer[transactionBufferReadPtr];
+                        transactionBufferReadPtr <= transactionBufferReadPtr + 7'd1;
                     end
                 end
                 default: begin

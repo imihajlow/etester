@@ -199,7 +199,10 @@ module FakeWishboneSlave(
             waitState <= 1'b0;
         end else begin
             waitState <= stb_i & cyc_i;
-            ack_o <= waitState;
+            if(stb_i & cyc_i)
+                ack_o <= waitState;
+            else
+                ack_o <= 1'b0;
             if(waitState) begin
                 if(adr_i - DATA_OFFSET >= 1024) begin
                     $display("Invalid address: %h", adr_i);
