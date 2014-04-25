@@ -493,6 +493,7 @@ module ModbusToWishbone(
     localparam SSTATE_ADDRESS_LO = 'h10;
     localparam SSTATE_QUANTITY_HI = 'h11;
     localparam SSTATE_QUANTITY_LO = 'h12;
+    localparam SSTATE_WB_READ_START = 'h13;
 
     /* sstate begin */
     reg [7:0] sstate = SSTATE_WAIT;
@@ -573,8 +574,11 @@ module ModbusToWishbone(
                 end
                 SSTATE_BYTE_COUNT: begin
                     if(fifoWriteAck) begin
-                        nextSstate = SSTATE_WB_READ;
+                        nextSstate = SSTATE_WB_READ_START;
                     end
+                end
+                SSTATE_WB_READ_START: begin
+                    nextSstate = SSTATE_WB_READ;
                 end
                 SSTATE_WB_READ: begin
                     if(fifoWriteAck) begin
@@ -632,7 +636,7 @@ module ModbusToWishbone(
         end else begin
             case(nextSstate)
                 SSTATE_WB_WRITE,
-                SSTATE_WB_READ: begin
+                SSTATE_WB_READ_START: begin
                     wbCurrentAddress <= wbStartAddress;
                 end
                 SSTATE_WB_WAIT_DATA_HI: begin
@@ -750,6 +754,7 @@ module ModbusToWishbone(
                 SSTATE_BEGIN: ocrcEnabled <= 1'b1;
                 SSTATE_WB_WAIT_DATA_HI: ocrcEnabled <= wbAckI;
                 SSTATE_WB_READ,
+                SSTATE_WB_READ_START,
                 SSTATE_WB_WRITE,
                 SSTATE_WB_WRITE_ACK,
                 SSTATE_CRC_LO,
@@ -772,6 +777,7 @@ module ModbusToWishbone(
                 SSTATE_WB_WRITE_ACK:
                     fifoWriteReq <= 1'b0;
                 SSTATE_END,
+                SSTATE_WB_READ_START,
                 SSTATE_WB_READ:
                     fifoWriteReq <= ~fifoWriteAck;
                 SSTATE_WB_WAIT_DATA_HI:
