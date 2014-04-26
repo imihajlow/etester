@@ -51,7 +51,7 @@ module ModbusToWishbone(
     assign fifoClk = ~clk;
 
     /* Receive begin */
-    localparam RSTATE_ADDRESS = 'h0;
+    localparam RSTATE_STATION_ADDRESS = 'h0;
     localparam RSTATE_WAIT = 'h1;
     localparam RSTATE_FUNCTION = 'h2;
     localparam RSTATE_CRC_LO = 'h3;
@@ -66,7 +66,6 @@ module ModbusToWishbone(
     localparam RSTATE_ERROR = 'hC;
     localparam RSTATE_SUCCESS = 'hD;
 
-    reg isTempFunctionSupported;
     reg isAddressValid;
     reg isTempQuantityValid;
     reg isQuantityValid;
@@ -76,23 +75,6 @@ module ModbusToWishbone(
     wire [7:0] tempByteCount = uartDataIn[7:0];
     reg [7:0] modbusFunction = 8'd0;
     always @(tempFunction, startAddress, tempQuantity, quantity, tempByteCount, modbusFunction) begin
-        case(tempFunction)
-            FUN_READ_COILS,
-            FUN_READ_DISCRETE_INPUTS: begin
-                isTempFunctionSupported = 1'b0;
-            end
-            FUN_READ_HOLDING_REGISTERS,
-            FUN_READ_INPUT_REGISTERS: begin
-                isTempFunctionSupported = 1'b1;
-            end
-            FUN_WRITE_MULTIPLE_REGISTERS: begin
-                isTempFunctionSupported = 1'b1;
-            end
-            default: begin
-                isTempFunctionSupported = 1'b0;
-            end
-        endcase
-
         case(modbusFunction)
             FUN_READ_COILS,
             FUN_READ_DISCRETE_INPUTS: begin
@@ -202,7 +184,7 @@ module ModbusToWishbone(
                 if(uartDataReceived) begin
                     if(!parityError) begin
                         case(rstate)
-                            RSTATE_ADDRESS: begin
+                            RSTATE_STATION_ADDRESS: begin
                             end
                             RSTATE_FUNCTION: begin
                                 modbusFunction <= uartDataIn[7:0];
@@ -255,7 +237,7 @@ module ModbusToWishbone(
         end
     end
     /* rstate begin */
-    reg [7:0] rstate = RSTATE_ADDRESS;
+    reg [7:0] rstate = RSTATE_STATION_ADDRESS;
     always @(posedge clk) begin
         rstate <= nextRstate;
     end
@@ -284,17 +266,17 @@ module ModbusToWishbone(
         asyncError = error;
         asyncExceptionCode = exceptionCode;
         if(rst) begin
-            nextRstate = RSTATE_ADDRESS;
+            nextRstate = RSTATE_STATION_ADDRESS;
         end else begin
             if(silence) begin
-                nextRstate = RSTATE_ADDRESS;
+                nextRstate = RSTATE_STATION_ADDRESS;
             end else begin
                 if(uartDataReceived) begin
                     if(parityError)
                         nextRstate = RSTATE_WAIT;
                     else begin
                         case(rstate)
-                            RSTATE_ADDRESS: begin
+                            RSTATE_STATION_ADDRESS: begin
                                 if(uartDataIn[7:0] == MODBUS_STATION_ADDRESS) begin
                                     nextRstate = RSTATE_FUNCTION;
                                 end else begin
@@ -302,22 +284,19 @@ module ModbusToWishbone(
                                 end
                             end
                             RSTATE_FUNCTION: begin
-                                if(isTempFunctionSupported) begin
-                                    case(tempFunction)
-                                        FUN_READ_HOLDING_REGISTERS,
-                                        FUN_READ_INPUT_REGISTERS,
-                                        FUN_WRITE_MULTIPLE_REGISTERS: begin
-                                            nextRstate = RSTATE_ADDRESS_HI;
-                                        end
-                                        default: begin
-                                            $display("Function %h is not implemented", uartDataIn[7:0]);
-                                        end
-                                    endcase
-                                end else begin
-                                    nextRstate = RSTATE_ERROR;
-                                    asyncError = 1'b1;
-                                    asyncExceptionCode = 8'h1;
-                                end
+                                case(tempFunction)
+                                    FUN_READ_HOLDING_REGISTERS,
+                                    FUN_READ_INPUT_REGISTERS,
+                                    FUN_WRITE_MULTIPLE_REGISTERS: begin
+                                        nextRstate = RSTATE_ADDRESS_HI;
+                                    end
+                                    default: begin
+                                        $display("Function %h is not implemented", uartDataIn[7:0]);
+                                        nextRstate = RSTATE_ERROR;
+                                        asyncError = 1'b1;
+                                        asyncExceptionCode = 8'h1;
+                                    end
+                                endcase
                             end
                             RSTATE_CRC_LO: begin
                                 nextRstate = RSTATE_CRC_HI;
@@ -338,7 +317,7 @@ module ModbusToWishbone(
                                         if(isAddressValid && isTempQuantityValid) begin
                                             nextRstate = RSTATE_CRC_LO;
                                         end else begin
-                                            nextRstate = RSTATE_WAIT;
+                                            nextRstate = RSTATE_ERROR;
                                             asyncError = 1'b1;
                                             if(~isTempQuantityValid) begin
                                                 asyncExceptionCode = 8'h03;
@@ -364,7 +343,7 @@ module ModbusToWishbone(
                                         if(isAddressValid && isQuantityValid && isTempByteCountValid) begin
                                             nextRstate = RSTATE_DATA_HI;
                                         end else begin
-                                            nextRstate = RSTATE_WAIT;
+                                            nextRstate = RSTATE_ERROR;
                                             asyncError = 1'b1;
                                             if(~isQuantityValid || ~isTempByteCountValid) begin
                                                 asyncExceptionCode = 8'h03;
@@ -389,10 +368,10 @@ module ModbusToWishbone(
                             end
                             RSTATE_WAIT: ;
                             RSTATE_ERROR: begin
-                                nextRstate = RSTATE_ADDRESS;
+                                nextRstate = RSTATE_WAIT;
                             end
                             RSTATE_SUCCESS: begin
-                                nextRstate = RSTATE_ADDRESS;
+                                nextRstate = RSTATE_STATION_ADDRESS;
                             end
                             default: begin
                                 $display("Unknown state %d", rstate);
@@ -411,7 +390,7 @@ module ModbusToWishbone(
     wire [15:0] icrcOut;
     reg [7:0] expectedCrcLo = 8'h0;
     wire [15:0] expectedCrc = {uartDataIn[7:0], expectedCrcLo};
-    wire icrcRst = rstate == RSTATE_ADDRESS || rstate == RSTATE_WAIT;
+    wire icrcRst = rstate == RSTATE_STATION_ADDRESS || rstate == RSTATE_WAIT;
     reg icrcEnabled = 1'b0;
     reg [7:0] icrcData = 8'b0;
     Crc _crc(
