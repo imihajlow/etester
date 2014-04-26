@@ -132,6 +132,12 @@ module ModbusToWishbone(
         else begin
             if(!silence) begin
                 case(rstate)
+                    RSTATE_STATION_ADDRESS: begin
+                        if(sstate != SSTATE_WAIT)
+                            uartReceiveReq <= 1'b0;
+                        else
+                            uartReceiveReq <= uartDataReceived;
+                    end
                     RSTATE_SUCCESS,
                     RSTATE_ERROR,
                     RSTATE_WAIT: uartReceiveReq <= 1'b0;
@@ -277,10 +283,12 @@ module ModbusToWishbone(
                     else begin
                         case(rstate)
                             RSTATE_STATION_ADDRESS: begin
-                                if(uartDataIn[7:0] == MODBUS_STATION_ADDRESS) begin
-                                    nextRstate = RSTATE_FUNCTION;
-                                end else begin
-                                    nextRstate = RSTATE_WAIT;
+                                if(sstate == SSTATE_WAIT) begin
+                                    if(uartDataIn[7:0] == MODBUS_STATION_ADDRESS) begin
+                                        nextRstate = RSTATE_FUNCTION;
+                                    end else begin
+                                        nextRstate = RSTATE_WAIT;
+                                    end
                                 end
                             end
                             RSTATE_FUNCTION: begin
@@ -291,7 +299,6 @@ module ModbusToWishbone(
                                         nextRstate = RSTATE_ADDRESS_HI;
                                     end
                                     default: begin
-                                        $display("Function %h is not implemented", uartDataIn[7:0]);
                                         nextRstate = RSTATE_ERROR;
                                         asyncError = 1'b1;
                                         asyncExceptionCode = 8'h1;
@@ -559,7 +566,7 @@ module ModbusToWishbone(
                     nextSstate = SSTATE_WB_READ;
                 end
                 SSTATE_WB_READ: begin
-                    if(fifoWriteAck) begin
+                    if(wbAckI) begin
                         nextSstate = SSTATE_DATA_HI;
                     end
                 end
@@ -684,9 +691,7 @@ module ModbusToWishbone(
                     end
                 end
                 SSTATE_DATA_HI: begin
-                    if(wbAckI) begin
-                        fifoDataOut <= wbDatI[15:8];
-                    end
+                    fifoDataOut <= wbCurrentData[15:8];
                 end
                 SSTATE_DATA_LO: begin
                     if(fifoWriteAck) begin
