@@ -1,0 +1,14 @@
+{signal: [
+  {name: 'clk',    wave: 'p.......|', period: 2},
+  {name: 'sstate', wave: '2.2.2.2.2...2.2.x|', data: ['WB_READ_START', 'WB_READ', 'DATA_HI', 'DATA_LO', 'WB_READ', 'DATA_HI', 'DATA_LO']},
+  {name: 'nextSstate', wave: '2..2.22....2.2x..|', data: ['WB_READ','DATA_HI', 'DATA_LO', 'WB_READ', 'DATA_HI', 'DATA_LO']},
+  {name: 'wbAdrO', wave: 'x.2.....2.......x|', data: ['START+0', 'START+1']},
+  {name: 'wbCycO', wave: '0.1.0...1...0...x|'},
+  {name: 'wbAckI', wave: '0..1.0.....1.0..x|'},
+  {name: 'fifoDataOut', wave: 'x...2.2.x...2.2.x|', data: ['x0_hi', 'x0_lo', 'x1_hi', 'x1_lo']},
+  {name: 'fifoWriteReq', wave: '0...1...0...1...0|'},
+  {name: 'fifoWriteAck', wave: '0....1...0...1...0'}
+],
+ config: {
+   hscale: 4   
+ }}

@@ -158,7 +158,7 @@ fontsize=12
       <w>170</w>
       <h>40</h>
     </coordinates>
-    <panel_attributes>WB_WAIT_DATA_HI
+    <panel_attributes>DATA_HI
 </panel_attributes>
     <additional_attributes/>
   </element>
@@ -170,7 +170,7 @@ fontsize=12
       <w>170</w>
       <h>40</h>
     </coordinates>
-    <panel_attributes>WB_WRITE</panel_attributes>
+    <panel_attributes>WB_WRITE_BEGIN</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
@@ -181,7 +181,7 @@ fontsize=12
       <w>170</w>
       <h>40</h>
     </coordinates>
-    <panel_attributes>WB_WRITE_ACK</panel_attributes>
+    <panel_attributes>WB_WRITE</panel_attributes>
     <additional_attributes/>
   </element>
   <element>

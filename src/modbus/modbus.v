@@ -5,7 +5,7 @@ module ModbusToWishbone(
     input rst,
     // Wishbone
     output [ADDRESS_WIDTH-1:0] wbAdrO,
-    output reg [DATA_WIDTH-1:0] wbDatO,
+    output [DATA_WIDTH-1:0] wbDatO,
     input [DATA_WIDTH-1:0] wbDatI,
     output reg wbCycO,
     output reg wbStbO,
@@ -426,7 +426,6 @@ module ModbusToWishbone(
     reg [ADDRESS_WIDTH-1:0] wbCurrentAddress = 0;
     reg [ADDRESS_WIDTH-1:0] wbStartAddress = 0;
     reg [ADDRESS_WIDTH-1:0] wbEndAddress = 0;
-    reg [DATA_WIDTH-1:0] wbCurrentData = 0;
     always @(modbusFunction, quantity, startAddress) begin
         case(modbusFunction)
             FUN_READ_HOLDING_REGISTERS,
@@ -465,9 +464,9 @@ module ModbusToWishbone(
     localparam SSTATE_BYTE_COUNT = 'h8;
     localparam SSTATE_DATA_LO = 'ha;
     localparam SSTATE_WB_READ = 'hb;
-    localparam SSTATE_WB_WAIT_DATA_HI = 'hc;
-    localparam SSTATE_WB_WRITE = 'hd;
-    localparam SSTATE_WB_WRITE_ACK = 'he;
+    localparam SSTATE_DATA_HI = 'hc;
+    localparam SSTATE_WB_WRITE_BEGIN = 'hd;
+    localparam SSTATE_WB_WRITE = 'he;
     localparam SSTATE_ADDRESS_HI = 'hf;
     localparam SSTATE_ADDRESS_LO = 'h10;
     localparam SSTATE_QUANTITY_HI = 'h11;
@@ -498,7 +497,7 @@ module ModbusToWishbone(
                             FUN_READ_INPUT_REGISTERS:
                                 nextSstate = SSTATE_BEGIN;
                             FUN_WRITE_MULTIPLE_REGISTERS: begin
-                                nextSstate = SSTATE_WB_WRITE;
+                                nextSstate = SSTATE_WB_WRITE_BEGIN;
                             end
                         endcase
                     end
@@ -561,11 +560,11 @@ module ModbusToWishbone(
                 end
                 SSTATE_WB_READ: begin
                     if(fifoWriteAck) begin
-                        nextSstate = SSTATE_WB_WAIT_DATA_HI;
+                        nextSstate = SSTATE_DATA_HI;
                     end
                 end
-                SSTATE_WB_WAIT_DATA_HI: begin
-                    if(wbAckI) begin
+                SSTATE_DATA_HI: begin
+                    if(fifoWriteAck) begin
                         nextSstate = SSTATE_DATA_LO;
                     end
                 end
@@ -577,10 +576,10 @@ module ModbusToWishbone(
                             nextSstate = SSTATE_WB_READ;
                     end
                 end
-                SSTATE_WB_WRITE: begin
-                    nextSstate = SSTATE_WB_WRITE_ACK;
+                SSTATE_WB_WRITE_BEGIN: begin
+                    nextSstate = SSTATE_WB_WRITE;
                 end
-                SSTATE_WB_WRITE_ACK: begin
+                SSTATE_WB_WRITE: begin
                     if(wbAckI) begin
                         if(wbCurrentAddress == wbEndAddress) begin
                             nextSstate = SSTATE_BEGIN;
@@ -610,21 +609,23 @@ module ModbusToWishbone(
     /* nextSstate begin */
 
     /* wbCurrentAddress, wbCurrentData begin */
+    reg [DATA_WIDTH-1:0] wbCurrentData = 0;
     always @(posedge clk) begin
         if(rst) begin
         end else begin
-            case(nextSstate)
-                SSTATE_WB_WRITE,
+            if(sstate == SSTATE_WB_READ && wbAckI)
+                wbCurrentData <= wbDatI;
+            case(sstate)
                 SSTATE_WB_READ_START: begin
                     wbCurrentAddress <= wbStartAddress;
                 end
-                SSTATE_WB_WAIT_DATA_HI: begin
+                SSTATE_DATA_LO: begin
                     wbCurrentAddress <= wbCurrentAddress + 1;
                 end
-                SSTATE_DATA_LO: begin
-                    wbCurrentData <= wbDatI;
+                SSTATE_WB_WRITE_BEGIN: begin
+                    wbCurrentAddress <= wbStartAddress;
                 end
-                SSTATE_WB_WRITE_ACK: begin
+                SSTATE_WB_WRITE: begin
                     if(wbAckI)
                         wbCurrentAddress <= wbCurrentAddress + 1;
                 end
@@ -682,7 +683,7 @@ module ModbusToWishbone(
                         end
                     end
                 end
-                SSTATE_WB_WAIT_DATA_HI: begin
+                SSTATE_DATA_HI: begin
                     if(wbAckI) begin
                         fifoDataOut <= wbDatI[15:8];
                     end
@@ -731,11 +732,11 @@ module ModbusToWishbone(
         end else begin
             case(sstate)
                 SSTATE_BEGIN: ocrcEnabled <= 1'b1;
-                SSTATE_WB_WAIT_DATA_HI: ocrcEnabled <= wbAckI;
+                SSTATE_DATA_HI: ocrcEnabled <= wbAckI;
                 SSTATE_WB_READ,
                 SSTATE_WB_READ_START,
+                SSTATE_WB_WRITE_BEGIN,
                 SSTATE_WB_WRITE,
-                SSTATE_WB_WRITE_ACK,
                 SSTATE_CRC_LO,
                 SSTATE_CRC_HI: ocrcEnabled <= 1'b0;
                 default: ocrcEnabled <= fifoWriteAck;
@@ -752,15 +753,13 @@ module ModbusToWishbone(
         end else begin
             case(sstate)
                 SSTATE_WAIT,
-                SSTATE_WB_WRITE,
-                SSTATE_WB_WRITE_ACK:
-                    fifoWriteReq <= 1'b0;
-                SSTATE_END,
                 SSTATE_WB_READ_START,
-                SSTATE_WB_READ:
+                SSTATE_WB_READ,
+                SSTATE_WB_WRITE_BEGIN,
+                SSTATE_WB_WRITE:
+                    fifoWriteReq <= 1'b0;
+                SSTATE_END:
                     fifoWriteReq <= ~fifoWriteAck;
-                SSTATE_WB_WAIT_DATA_HI:
-                    fifoWriteReq <= wbAckI;
                 default:
                     fifoWriteReq <= 1'b1;
             endcase
@@ -769,63 +768,43 @@ module ModbusToWishbone(
     /* fifoWriteReq end */
 
     /* wishbone begin */
-    initial wbDatO = 0;
+    assign wbDatO = transactionBuffer[transactionBufferReadPtr];
     assign wbAdrO = wbCurrentAddress;
-    initial wbCycO = 1'b0;
-    initial wbStbO = 1'b0;
-    initial wbWeO = 1'b0;
-    always @(posedge clk) begin
-        if(rst) begin
-            wbCycO <= 1'b0;
-            wbStbO <= 1'b0;
-            wbWeO <= 1'b0;
-            wbDatO <= 0;
-            transactionBufferReadPtr <= 7'd0;
-        end else begin
-            case(nextSstate)
+    always @(*) begin
+        wbCycO = 1'b0;
+        wbStbO = 1'b0;
+        wbWeO = 1'b0;
+        if(~rst) begin
+            case(sstate)
+                SSTATE_WB_READ: begin
+                    wbCycO = 1'b1;
+                    wbStbO = 1'b1;
+                    wbWeO = 1'b0;
+                end
                 SSTATE_WB_WRITE: begin
-                    transactionBufferReadPtr <= 7'd0;
-                    wbCycO <= 1'b1;
-                    wbStbO <= 1'b1;
-                    wbWeO <= 1'b1;
-                    wbDatO <= transactionBuffer[transactionBufferReadPtr];
-                    transactionBufferReadPtr <= transactionBufferReadPtr + 7'd1;
-                end
-                SSTATE_WB_WAIT_DATA_HI: begin
-                    wbCycO <= 1'b1;
-                    wbStbO <= 1'b1;
-                    wbWeO <= 1'b0;
-                end
-                SSTATE_DATA_LO: begin
-                    wbCycO <= 1'b0;
-                    wbStbO <= 1'b0;
-                    wbWeO <= 1'b0;
-                end
-                SSTATE_WB_WRITE_ACK: begin
-                    if(wbAckI) begin
-                        wbCycO <= 1'b1;
-                        wbStbO <= 1'b1;
-                        wbWeO <= 1'b1;
-                        wbDatO <= transactionBuffer[transactionBufferReadPtr];
-                        transactionBufferReadPtr <= transactionBufferReadPtr + 7'd1;
-                    end
-                end
-                default: begin
-                    wbCycO <= 1'b0;
-                    wbStbO <= 1'b0;
-                    wbWeO <= 1'b0;
+                    wbCycO = 1'b1;
+                    wbStbO = 1'b1;
+                    wbWeO = 1'b1;
                 end
             endcase
         end
     end
     /* wishbone end */
-
-
-    // TODO Задерживать обработку входящего запроса при не до конца отправленном ответе
-
-    always @(negedge clk) begin
+    
+    always @(posedge clk) begin
         if(rst) begin
+            transactionBufferReadPtr <= 7'd0;
         end else begin
+            case(sstate)
+                SSTATE_WB_WRITE_BEGIN: begin
+                    transactionBufferReadPtr <= 7'd0;
+                end
+                SSTATE_WB_WRITE: begin
+                    if(wbAckI) begin
+                        transactionBufferReadPtr <= transactionBufferReadPtr + 7'd1;
+                    end
+                end
+            endcase
         end
     end
 endmodule
