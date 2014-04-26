@@ -2,7 +2,10 @@ module etester(
     output [3:0] leds,
     input [3:0] buttons,
     inout [7:0] gpio,
-    input osc
+    input osc,
+    input rs232_rx,
+    output rs232_tx
+
 );
     wire [7:0] rxDataOut;
     wire rxDataReceived;
@@ -32,8 +35,11 @@ module etester(
 
 
     /* UART begin */
-    assign gpio[4] = tx;
-    assign rx = gpio[3];
+    /*assign gpio[4] = tx;
+    assign rx = gpio[3];*/
+    /*assign rs232_tx = tx;
+    assign rx = rs232_rx;*/
+    assign gpio[4] = gpio[3];
     UartReceiver _r(
         .clk(mUartClk),
         .rst(rst),

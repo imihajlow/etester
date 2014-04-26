@@ -74,7 +74,7 @@ module ModbusToWishbone(
     wire [7:0] tempFunction = uartDataIn[7:0];
     wire [7:0] tempByteCount = uartDataIn[7:0];
     reg [7:0] modbusFunction = 8'd0;
-    always @(tempFunction, startAddress, tempQuantity, quantity, tempByteCount, modbusFunction) begin
+    always @(*) begin
         case(modbusFunction)
             FUN_READ_COILS,
             FUN_READ_DISCRETE_INPUTS: begin
@@ -190,8 +190,6 @@ module ModbusToWishbone(
                 if(uartDataReceived) begin
                     if(!parityError) begin
                         case(rstate)
-                            RSTATE_STATION_ADDRESS: begin
-                            end
                             RSTATE_FUNCTION: begin
                                 modbusFunction <= uartDataIn[7:0];
                             end
@@ -231,17 +229,13 @@ module ModbusToWishbone(
                                 transactionBuffer[transactionBufferWritePtr] <= currentData;
                                 transactionBufferWritePtr <= transactionBufferWritePtr + 7'd1;
                             end
-                            RSTATE_WAIT: ;
-                            RSTATE_ERROR: ;
-                            RSTATE_SUCCESS: ;
-                            default: begin
-                            end
                         endcase
                     end // parityError
                 end // uartDataReceived
             end // silence
         end
     end
+
     /* rstate begin */
     reg [7:0] rstate = RSTATE_STATION_ADDRESS;
     always @(posedge clk) begin
