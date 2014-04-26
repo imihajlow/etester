@@ -1,6 +1,6 @@
 {signal: [
   {name: 'clk',    wave: 'p.....|', period: 2},
-  {name: 'sstate', wave: '2.2.......x..|', data: ['WB_WRITE_BEGIN', 'WB_WRITE']},
+  {name: 'sstate', wave: '2.2.......x..|', data: ['WB_WRITE_START', 'WB_WRITE']},
   {name: 'wbAdrO', wave: 'x.2.2...2.x..|', data: ['START+0', 'START+1', 'START+2']},
   {name: 'wbCycO', wave: '0.1.......0..|'},
   {name: 'wbAckI', wave: '0..1.0.1...0.|'}

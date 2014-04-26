@@ -170,7 +170,7 @@ fontsize=12
       <w>170</w>
       <h>40</h>
     </coordinates>
-    <panel_attributes>WB_WRITE_BEGIN</panel_attributes>
+    <panel_attributes>WB_WRITE_START</panel_attributes>
     <additional_attributes/>
   </element>
   <element>

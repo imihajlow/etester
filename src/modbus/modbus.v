@@ -465,7 +465,7 @@ module ModbusToWishbone(
     localparam SSTATE_DATA_LO = 'ha;
     localparam SSTATE_WB_READ = 'hb;
     localparam SSTATE_DATA_HI = 'hc;
-    localparam SSTATE_WB_WRITE_BEGIN = 'hd;
+    localparam SSTATE_WB_WRITE_START = 'hd;
     localparam SSTATE_WB_WRITE = 'he;
     localparam SSTATE_ADDRESS_HI = 'hf;
     localparam SSTATE_ADDRESS_LO = 'h10;
@@ -497,7 +497,7 @@ module ModbusToWishbone(
                             FUN_READ_INPUT_REGISTERS:
                                 nextSstate = SSTATE_BEGIN;
                             FUN_WRITE_MULTIPLE_REGISTERS: begin
-                                nextSstate = SSTATE_WB_WRITE_BEGIN;
+                                nextSstate = SSTATE_WB_WRITE_START;
                             end
                         endcase
                     end
@@ -576,7 +576,7 @@ module ModbusToWishbone(
                             nextSstate = SSTATE_WB_READ;
                     end
                 end
-                SSTATE_WB_WRITE_BEGIN: begin
+                SSTATE_WB_WRITE_START: begin
                     nextSstate = SSTATE_WB_WRITE;
                 end
                 SSTATE_WB_WRITE: begin
@@ -622,7 +622,7 @@ module ModbusToWishbone(
                 SSTATE_DATA_LO: begin
                     wbCurrentAddress <= wbCurrentAddress + 1;
                 end
-                SSTATE_WB_WRITE_BEGIN: begin
+                SSTATE_WB_WRITE_START: begin
                     wbCurrentAddress <= wbStartAddress;
                 end
                 SSTATE_WB_WRITE: begin
@@ -735,7 +735,7 @@ module ModbusToWishbone(
                 SSTATE_DATA_HI: ocrcEnabled <= wbAckI;
                 SSTATE_WB_READ,
                 SSTATE_WB_READ_START,
-                SSTATE_WB_WRITE_BEGIN,
+                SSTATE_WB_WRITE_START,
                 SSTATE_WB_WRITE,
                 SSTATE_CRC_LO,
                 SSTATE_CRC_HI: ocrcEnabled <= 1'b0;
@@ -755,7 +755,7 @@ module ModbusToWishbone(
                 SSTATE_WAIT,
                 SSTATE_WB_READ_START,
                 SSTATE_WB_READ,
-                SSTATE_WB_WRITE_BEGIN,
+                SSTATE_WB_WRITE_START,
                 SSTATE_WB_WRITE:
                     fifoWriteReq <= 1'b0;
                 SSTATE_END:
@@ -796,7 +796,7 @@ module ModbusToWishbone(
             transactionBufferReadPtr <= 7'd0;
         end else begin
             case(sstate)
-                SSTATE_WB_WRITE_BEGIN: begin
+                SSTATE_WB_WRITE_START: begin
                     transactionBufferReadPtr <= 7'd0;
                 end
                 SSTATE_WB_WRITE: begin
