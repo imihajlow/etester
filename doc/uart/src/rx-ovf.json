@@ -5,7 +5,6 @@
   {name: 'receiveReq',  wave: '0|..|..|.10', phase:0.5}
   ],
   ["output",
-   {name: 'ready',		wave: '1|0.|1.|...'},
    {name: 'dataOut',	wave: 'x|..|2.|3..', data: "char1 char2"},
    {name:'dataReceived',wave: '0|..|1.|.0.'},
    {name: 'overflow',	wave: '0|..|..|10.'} 

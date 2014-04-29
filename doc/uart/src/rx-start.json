@@ -1,0 +1,8 @@
+{signal: [
+  {name: 'clk',	 			wave: 'p....|..|....|..|.'},
+  {name: 'rx',				wave: '1.0...|..|..x.|..|.', phase: 0.5},
+  {name: 'uartClkEnabled',  wave: '0..1.|..|.....|..|.'},
+  {name: 'clockCounter',	wave: 'x..222|22|2222|22|2', data: "0 1 2 N N+1 2N 0 1 2 N N+1", phase: 0.5},
+  {name:'uartClk',			wave: '0.....|10|....|10|.', phase: 0.5},
+  {name: 'state',			wave: '2..2.|.2|....|.2.|.', data: "IDLE START DATA DATA"}
+]}

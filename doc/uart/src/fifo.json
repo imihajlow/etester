@@ -25,4 +25,7 @@
    {name: 'empty',		wave: '10......1.'},
    {name: 'full',		wave: '0.........'}
   ]
-]}
+],
+head:{
+   tick:0
+}}

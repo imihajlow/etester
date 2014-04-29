@@ -1,7 +1,7 @@
 {signal: [
   {name: 'clk',	 		wave: 'p...|....'},
   ["in",
-   {name: 'transmitReq',wave: '010.|....'},
+   {name: 'transmitReq',wave: '010.|....', phase: 0.5},
    {name: 'data',		wave: 'x2x.|....', data: "char", phase: 0.5},
   ],
   ["out",

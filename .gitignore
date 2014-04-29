@@ -9,3 +9,5 @@ simulation/
 *~
 *.vcd
 greybox_tmp/
+.*
+!.gitignore
