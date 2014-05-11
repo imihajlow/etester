@@ -1,8 +1,10 @@
 {signal: [
   {name: 'clk',	 		wave: 'p...|..|.....'},
-  {name: 'dataReceived',wave: '0.10|10|.10..', phase: 0.5},
-  {name: 'receiveReq',	wave: '0.10|10|.10..'},
-  {name: 'rstate',		wave: '2.2.|2.|.2...', data: "ADDRESS X Y CRC0"},
+  {name: 'uartDataReceived',wave: '0.10|10|.10..', phase: 1},
+  {name: 'uartReceiveReq',	wave: '0.10|10|.10..'},
+  {name: 'rstate',		wave: '2.3.|3.|.2...', data: "STATION_ADDRESS X Y CRC_LO"},
   {name: 'crcEnabled',  wave: '0.10|10|.....'},
   {name: 'crcRst',		wave: '1.0.|..|.....'}
-]}
+],
+ config: {hscale: 2}
+}
