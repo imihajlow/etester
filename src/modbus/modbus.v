@@ -263,7 +263,7 @@ module ModbusToWishbone(
     reg [7:0] asyncExceptionCode;
     always @(*) begin
         nextRstate = rstate;
-        asyncError = error;
+        asyncError = error; // TODO сбрасывать в ноль
         asyncExceptionCode = exceptionCode;
         if(rst) begin
             nextRstate = RSTATE_STATION_ADDRESS;

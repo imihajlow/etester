@@ -50,18 +50,6 @@ fontsize=12
   <element>
     <type>com.umlet.element.custom.State</type>
     <coordinates>
-      <x>90</x>
-      <y>100</y>
-      <w>170</w>
-      <h>40</h>
-    </coordinates>
-    <panel_attributes>STATION_ADDRESS
-</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <type>com.umlet.element.custom.State</type>
-    <coordinates>
       <x>790</x>
       <y>360</y>
       <w>170</w>

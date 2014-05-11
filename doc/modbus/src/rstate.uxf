@@ -426,4 +426,15 @@ silence</panel_attributes>
     <panel_attributes>lt=&lt;-</panel_attributes>
     <additional_attributes>90;30;120;30;120;80;30;80;30;50</additional_attributes>
   </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>100</x>
+      <y>270</y>
+      <w>380</w>
+      <h>480</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-</panel_attributes>
+    <additional_attributes>30;30;30;460;360;460;360;370</additional_attributes>
+  </element>
 </diagram>
