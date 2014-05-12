@@ -10,7 +10,7 @@
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="282.07141"
-   height="161"
+   height="206"
    id="svg3395"
    version="1.1"
    inkscape:version="0.48.3.1 r9886"
@@ -474,8 +474,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1.979899"
-     inkscape:cx="132.71316"
-     inkscape:cy="-22.462278"
+     inkscape:cx="43.819737"
+     inkscape:cy="22.537722"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="true"
@@ -496,7 +496,7 @@
        enabled="true"
        snapvisiblegridlinesonly="true"
        originx="-64.5px"
-       originy="-774.5px" />
+       originy="-729.5px" />
   </sodipodi:namedview>
   <metadata
      id="metadata3400">
@@ -506,7 +506,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -561,7 +561,7 @@
          style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
     </g>
     <path
-       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3305)"
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3313-36)"
        d="m 65,232.36217 50,0 0,0"
        id="path2987-7-8"
        inkscape:connector-curvature="0" />
@@ -593,7 +593,7 @@
        id="path2987-7-8-2-7"
        inkscape:connector-curvature="0" />
     <path
-       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-start:url(#Arrow1Mend-1);marker-end:none"
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-start:none;marker-end:none"
        d="m 296.0714,172.71933 50,0 0,0"
        id="path2987-4"
        inkscape:connector-curvature="0" />
@@ -619,7 +619,7 @@
          id="tspan7143"
          x="125.30969"
          y="147.05994"
-         style="font-weight:bold;-inkscape-font-specification:Sans Bold">Processor</tspan></text>
+         style="font-weight:bold;-inkscape-font-specification:Sans Bold">Port</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        d="m 115,117.36218 180,0 0,205 -180,0 z"
@@ -627,7 +627,7 @@
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="ccccc" />
     <path
-       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3305)"
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3313-36)"
        d="m 65,262.36216 50,0 0,0"
        id="path2987-7-8-5"
        inkscape:connector-curvature="0" />
@@ -654,12 +654,12 @@
          x="125"
          y="247.36218">wbDatO</tspan></text>
     <path
-       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3313)"
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3305-8)"
        d="m 65,246.64787 50,0 0,0"
        id="path2987-7-8-2-7-6"
        inkscape:connector-curvature="0" />
     <path
-       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3305)"
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3313-36)"
        d="m 65,292.36216 50,0 0,0"
        id="path2987-7-8-4"
        inkscape:connector-curvature="0" />
@@ -702,7 +702,7 @@
          x="125"
          y="307.36218">wbAckO</tspan></text>
     <path
-       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3313)"
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker3305-8)"
        d="m 65,306.64787 50,0 0,0"
        id="path2987-7-8-2-7-55"
        inkscape:connector-curvature="0" />
