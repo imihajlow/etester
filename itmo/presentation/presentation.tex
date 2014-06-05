@@ -91,11 +91,11 @@
 \author{Иван Михайлов} % Your name
 \institute[СПбНИУ ИТМО] % Your institution as it will appear on the bottom of every slide, may be shorthand to save space
 {
-Санкт-Петербургский Национальный Исследовательский Университет Информационных Технологий, Механики и Оптики
+Санкт-Петербургский национальный исследовательский университет информационных технологий, механики и оптики
 %\medskip
 %\textit{john@smith.com} % Your email address
 }
-\date{\today} % Date, can be changed to a custom date
+\date{2014} % Date, can be changed to a custom date
 
 \begin{document}
 
@@ -122,10 +122,11 @@
 \frametitle{Цель проекта}
 Создание системы автоматического тестирования электронного оборудования.
 
+\vspace{20pt}
 \textbf{Зачем?}
 \begin{itemize}
-\item Автоматизация контроля качества;
-\item Снижение расходов на гарантийный ремонт;
+\item Автоматизация процесса тестирования на производстве и при ремонте, обеспечивающая снижение сроков, трудоемкости, затрат.
+\item Повышение качества тестирования.
 \item Нагрузочное тестирование.
 \end{itemize}
 \end{frame}
@@ -135,9 +136,9 @@
 \begin{frame}
 \frametitle{Задачи}
 \begin{itemize}
-\item Выбор языка тестирования;
+\item Выбор языка описания тестов для автоматизированной системы тестирования;
 \item Разработка архитектуры тестирующей системы;
-\item Разработка системы на кристалле;
+\item Разработка специализированных аппаратных блоков системы тестирования на базе ПЛИС;
 \item Составление технических требований на разработку ПО.
 \end{itemize}
 \end{frame}
@@ -145,24 +146,24 @@
 %------------------------------------------------
 
 \begin{frame}
-\frametitle{Рассмотренные языки тестирования}
+\frametitle{Рассмотренные языки описания тестов}
 \begin{itemize}
-\item ETSI TDL;
-\item TestTalk;
-\item Cucumber;
-\item Test Template Framework и Z-нотация.
+\item ETSI TDL --- прототип стандарта на технологию и язык тестирования;
+\item TestTalk --- абстрактный язык описания тестов;
+\item Cucumber --- язык на основе Ruby для ведения разработки через поведение;
+\item Test Template Framework --- средство для тестирования на основе математического аппарата Z-нотации.
 \end{itemize}
 \end{frame}
 
 %------------------------------------------------
 
 \begin{frame}[fragile]
-\frametitle{Выбранный язык тестирования}
+\frametitle{Выбранный язык описания тестов}
 \textbf{Cucumber}
 \begin{itemize}
 \item Основан на Ruby;
-\item Простой синтаксис;
-\item Интернационализация.
+\item Простой синтаксис --- возможность написания тестов низкоквалифицированными сотрудниками;
+\item Интернационализация --- ключевые слова на любом человеческом языке.
 \end{itemize}
 \begin{block}{Пример кода}
 \begin{verbatim}
@@ -178,7 +179,7 @@ Scenario: Add two numbers
 %------------------------------------------------
 
 \begin{frame}
-\frametitle{Архитектура тестирующей системы}
+\frametitle{Стуктурно-функциональная схема системы тестирования}
 \begin{figure}
 \includegraphics[width=0.95\textwidth,height=0.8\textheight,keepaspectratio]{arch.png}
 \end{figure}
@@ -190,15 +191,15 @@ Scenario: Add two numbers
 \frametitle{Почему ПЛИС?}
 \begin{itemize}
 \item Большое число линий ввода-вывода;
-\item Простота реализации системы реального времени;
-\item Гибкость.
+\item Простота реализации системы реального времени (по сравнению с микроконтроллером);
+\item Гибкость --- возможность использования любых необходимых аппаратных протоколов.
 \end{itemize}
 \end{frame}
 
 %------------------------------------------------
 
 \begin{frame}
-\frametitle{Архитектура системы на кристалле}
+\frametitle{Структурно-функциональная схема специализированной подсистемы на ПЛИС}
 \begin{figure}
 \includegraphics[width=0.95\linewidth]{system.png}
 \end{figure}
@@ -209,19 +210,20 @@ Scenario: Add two numbers
 \begin{frame}
 \frametitle{Система команд процессора}
 \begin{itemize}
-\item SET;
-\item WAIT;
-\item PAUSE;
-\item WIN;
-\item NOP.
+\item SET --- установка значения в регистре;
+\item WAIT --- ожидание значения в регистре в течение заданного времени;
+\item PAUSE --- временная задержка;
+\item WIN --- успешное завершение теста;
+\item NOP --- отсутствие операции.
 \end{itemize}
+Этого набора достаточно для охвата всех операторов языка Cucumber.
 \end{frame}
 
 
 %------------------------------------------------
 
 \begin{frame}
-\frametitle{Программное обеспечение}
+\frametitle{Требования к ПО}
 \begin{enumerate}
 \item Загрузчик конфигурации ПЛИС;
 \item Компилятор тестовых программ;
